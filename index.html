@@ -1,0 +1,1445 @@
+<!DOCTYPE html>
+<html lang="it">
+<head>
+<meta charset="UTF-8">
+<meta name="viewport" content="width=device-width, initial-scale=1, viewport-fit=cover">
+<title>Quiz Night</title>
+<script src="https://www.gstatic.com/firebasejs/8.10.1/firebase-app.js"></script>
+<script src="https://www.gstatic.com/firebasejs/8.10.1/firebase-database.js"></script>
+<script src="https://cdnjs.cloudflare.com/ajax/libs/qrcodejs/1.0.0/qrcode.min.js"></script>
+<script src="https://cdnjs.cloudflare.com/ajax/libs/jszip/3.10.1/jszip.min.js"></script>
+<link rel="preconnect" href="https://fonts.googleapis.com">
+<link href="https://fonts.googleapis.com/css2?family=Luckiest+Guy&display=swap" rel="stylesheet">
+<style>
+:root{--bg:#f6f5f2;--card:#fff;--text:#1c1c1e;--accent:#5b3fd6;--muted:#777;--line:#e2e0da;--ok:#1e8e4e;--warn:#b26a00;--err:#c0392b;
+  --ink:#111;--blue:#2a74d6;--red:#e63b2e;--yellow:#f6c324;--comic-font:"Luckiest Guy",system-ui,sans-serif;
+  /* sfondo stile copertina: raggi blu/rosso/giallo, retino a puntini e luce al centro */
+  --comic:radial-gradient(circle at 50% 42%,rgba(255,255,255,.45),rgba(255,255,255,0) 55%),
+    radial-gradient(circle,rgba(0,0,0,.16) 1.3px,transparent 1.9px) 0 0/12px 12px,
+    repeating-conic-gradient(from -6deg at 50% 42%,var(--blue) 0 10deg,var(--red) 10deg 20deg,var(--yellow) 20deg 30deg)}
+@media (prefers-color-scheme: dark){:root{--bg:#17171a;--card:#222227;--text:#eee;--accent:#9b8cff;--muted:#999;--line:#333;--warn:#f0a030;--err:#ff6b5b}}
+*{box-sizing:border-box}
+body{margin:0;font-family:system-ui,-apple-system,sans-serif;background:var(--comic);background-color:var(--bg);background-attachment:fixed;color:var(--text);padding:16px;max-width:720px;margin:auto;min-height:100vh}
+/* sfondo scelto dal presentatore: sostituisce quello a fumetto */
+body.custom-bg{background:var(--bg) center/cover fixed}
+h1{font-family:var(--comic-font);font-weight:400;font-size:2rem;letter-spacing:.02em;margin:0 0 12px;color:#fff;
+  text-shadow:3px 3px 0 var(--ink),-1.5px -1.5px 0 var(--ink),1.5px -1.5px 0 var(--ink),-1.5px 1.5px 0 var(--ink),1.5px 1.5px 0 var(--ink)}
+nav{display:flex;gap:6px;flex-wrap:wrap;margin-bottom:16px}
+nav button{flex:1;padding:10px;border:2px solid var(--ink);background:var(--card);color:var(--text);border-radius:8px;cursor:pointer;font-weight:600;box-shadow:3px 3px 0 var(--ink)}
+nav button.on{background:var(--accent);color:#fff}
+.card{background:var(--card);border:3px solid var(--ink);border-radius:12px;padding:14px;margin-bottom:14px;box-shadow:5px 5px 0 var(--ink)}
+input,select,textarea{width:100%;padding:10px;margin:4px 0 8px;border:1px solid var(--line);border-radius:8px;background:var(--bg);color:var(--text);font:inherit}
+.btn{padding:10px 14px;border:0;border-radius:8px;background:var(--accent);color:#fff;cursor:pointer;font:inherit;margin:3px}
+.btn.ghost{background:transparent;color:var(--text);border:1px solid var(--line)}
+.btn.danger{background:#c0392b}
+.btn.ok{background:var(--ok)}
+.btn:disabled{opacity:.4}
+.big-opt{display:block;width:100%;padding:22px;font-size:1.2rem;margin:8px 0}
+.muted{color:var(--muted);font-size:.9rem}
+.row{display:flex;justify-content:space-between;align-items:center;gap:8px;padding:8px 0;border-bottom:1px solid var(--line)}
+.row:last-child{border-bottom:0}
+.tag{font-size:.75rem;padding:2px 8px;border-radius:99px;border:1px solid var(--line);color:var(--muted)}
+.tag.good{border-color:var(--ok);color:var(--ok)}
+.big{font-size:1.25rem;font-weight:600;margin:8px 0}
+.me{outline:2px solid var(--accent)}
+.pod{display:flex;align-items:center;gap:12px;padding:16px;margin:8px 0;border-radius:12px;background:var(--card);border:1px solid var(--line);font-size:1.3rem}
+.pos{width:48px;text-align:center;font-size:1.6rem}
+.pname{flex:1;font-weight:600;overflow:hidden;text-overflow:ellipsis}
+.ppts{font-size:1.8rem;font-weight:800;color:var(--accent)}
+.pme{outline:3px solid var(--accent)}
+.qr{background:#fff;padding:12px;display:inline-block;border-radius:8px}
+.thumbs{display:flex;gap:6px;flex-wrap:wrap;margin:6px 0}
+.thumbs img{height:70px;border-radius:6px}
+/* prove pratiche */
+.secret-word{background:var(--yellow);color:#000;border:3px solid var(--ink);border-radius:8px;box-shadow:3px 3px 0 var(--ink);padding:10px 14px;margin:6px 0;font-size:1.2rem}
+.secret-word strong{font-family:var(--comic-font);font-weight:400;font-size:2rem;letter-spacing:.03em}
+.intesa-btns{display:flex;gap:8px;align-items:center;flex-wrap:wrap;margin:6px 0}
+.intesa-btns .btn{font-size:1.15rem;padding:12px 20px}
+.pj-turn{font-size:2.2em;margin:.2em 0}
+.pj-turn strong{font-family:var(--comic-font);font-weight:400;color:var(--red);letter-spacing:.03em}
+.pj-count{font-family:var(--comic-font);font-size:5em;line-height:1;margin:.2em 0}
+.pj-count small{font-family:system-ui,sans-serif;font-size:.25em;font-weight:700}
+.pj-words{display:flex;flex-wrap:wrap;gap:.4em;margin:.4em 0}
+.pj-words span{font-size:1.3em;font-weight:700;padding:.2em .6em;border:.08em solid var(--ink);border-radius:.4em;background:#eee;opacity:.6}
+.pj-words span.ok{background:#c8f0d4;opacity:1}
+/* lavagna: sul tablet a tutto schermo, sul proiettore al centro della domanda */
+body.lavagna{max-width:none;padding:8px;height:100vh;overflow:hidden}
+body.lavagna h1{display:none}
+.board{display:flex;flex-direction:column;height:calc(100vh - 16px);gap:6px}
+.board-bar{display:flex;justify-content:space-between;align-items:center;gap:8px;background:#fff;border:2px solid var(--ink);border-radius:8px;padding:6px 10px;color:#000}
+.board-word{font-size:.85rem;color:#555}
+.board-tools{display:flex;gap:6px;align-items:center;flex-wrap:wrap}
+.board-col{width:38px;height:38px;border-radius:50%;border:3px solid #fff;box-shadow:0 0 0 2px var(--ink);cursor:pointer;padding:0}
+.board-tools .sel{outline:4px solid var(--yellow);outline-offset:2px}
+.board-area{flex:1;min-height:0;position:relative}
+.board-area canvas,.pj-draw canvas{position:absolute;left:50%;top:0;transform:translateX(-50%);border:3px solid var(--ink);border-radius:8px;background:#fff}
+.board-area canvas{touch-action:none;cursor:crosshair}
+.board.off .board-area canvas{opacity:.4;cursor:not-allowed}
+.pj-draw{flex:1;min-height:0;position:relative;margin:.3em 0}
+.clue-thumb{position:relative;display:inline-block}
+.clue-thumb b{position:absolute;top:2px;left:2px;background:var(--ink);color:#fff;font-size:.75rem;padding:0 5px;border-radius:4px}
+.clue-thumb.hidden img{opacity:.3}
+.msg-err{color:var(--err)}
+.msg-warn{color:var(--warn)}
+.rhead{margin:10px 0 4px;font-weight:700}
+/* regia del presentatore: dove siamo, cosa succede, un solo pulsante per andare avanti */
+.regia{border-color:var(--accent)}
+.step{font-family:var(--comic-font);letter-spacing:.03em;color:var(--accent);font-size:1.05rem}
+.next-btn{display:block;width:100%;padding:16px;font-size:1.15rem;font-weight:700;margin:0;border:2px solid var(--ink);box-shadow:3px 3px 0 var(--ink)}
+.next-btn:disabled{opacity:.35;box-shadow:none}
+.next-btn.hot{background:var(--ok);animation:pulse 1.2s ease-in-out infinite}
+.all-in{display:block;font-weight:700;color:var(--ok);font-size:1.1rem}
+.buzz-row{display:flex;gap:8px;align-items:center;flex-wrap:wrap;margin:6px 0}
+.buzz-box{flex:1;min-width:180px;padding:10px 14px;border:2px dashed #999;border-radius:8px;color:#666}
+.buzz-box.on{background:var(--yellow);color:#000;border:3px solid var(--ink);box-shadow:3px 3px 0 var(--ink);font-size:1.35rem;animation:pulse 1.2s ease-in-out infinite}
+.buzz-box.on strong{font-family:var(--comic-font);letter-spacing:.03em;font-size:1.6rem}
+.buzz-next{display:block;font-size:.95rem;font-weight:400}
+@keyframes pulse{50%{transform:scale(1.025)}}
+@media (prefers-reduced-motion: reduce){.next-btn.hot,.buzz-box.on{animation:none}}
+.fix summary{cursor:pointer}
+.fix .row select{flex:1;margin:0}
+
+/* ---------- proiettore: riquadri a fumetto (bianco, bordo nero, ombra piena) sullo sfondo a raggi ---------- */
+body.proj{max-width:none;padding:0;color:var(--ink);overflow:hidden;font-size:clamp(16px,1.6vw,32px)}
+body.proj h1{display:none}
+.pj{position:fixed;inset:0;display:flex;flex-direction:column;padding:3vh 3vw}
+.comic-box{background:#fff;border:.2em solid var(--ink);border-radius:.6em;box-shadow:.4em .4em 0 var(--ink)}
+.comic-title{font-family:var(--comic-font);font-weight:400;color:#fff;letter-spacing:.02em;
+  text-shadow:.08em .08em 0 var(--ink),-.04em -.04em 0 var(--ink),.04em -.04em 0 var(--ink),-.04em .04em 0 var(--ink),.04em .04em 0 var(--ink)}
+.pj-tag{font-family:var(--comic-font);background:var(--ink);color:#fff;padding:.25em .7em .1em;border-radius:.3em;letter-spacing:.03em}
+.pj-full{position:fixed;inset:0;display:flex;align-items:center;justify-content:center;padding:4vh 4vw}
+.pj-full img{max-width:100%;max-height:100%;object-fit:contain;border:.25em solid var(--ink);border-radius:.6em;box-shadow:.5em .5em 0 var(--ink)}
+.pj-cap{position:absolute;left:50%;bottom:5vh;transform:translateX(-50%) rotate(-2deg);padding:.2em .9em 0;font-size:2.4em;white-space:nowrap;
+  font-family:var(--comic-font);background:var(--yellow);border:.08em solid var(--ink);border-radius:.25em;box-shadow:.12em .12em 0 var(--ink)}
+.pj-main{flex:1;display:flex;flex-direction:column;justify-content:safe center;max-width:calc(100% - 23vw);min-height:0;overflow:hidden;margin-top:2vh;padding:1em 1.4em}
+.pj-top{display:flex;gap:1em;align-items:center;font-size:.95em}
+/* senza classifica nell'angolo la domanda usa tutta la larghezza */
+.pj.wide .pj-main{max-width:none}
+.pj.wide .pj-timer{margin-right:0}
+.pj-timer{font-family:var(--comic-font);font-size:2.2em;margin-left:auto;margin-right:22vw;background:var(--red);color:#fff;padding:.15em .5em 0;
+  border:.07em solid var(--ink);border-radius:.25em;box-shadow:.1em .1em 0 var(--ink);min-width:3.2em;text-align:center}
+.pj-q{font-size:2em;font-weight:800;line-height:1.25;margin:.3em 0}
+.pj-q.long{font-size:1.45em}
+.pj-cat{font-family:var(--comic-font);font-size:1.2em;color:var(--red);letter-spacing:.04em}
+.pj-opts{display:grid;grid-template-columns:1fr 1fr;gap:.7em;margin-top:.6em}
+.pj-opt{padding:.7em 1em;border-radius:.5em;font-size:1.25em;font-weight:700;transition:opacity .3s,transform .3s;border:.12em solid var(--ink);box-shadow:.2em .2em 0 var(--ink)}
+.pj-opts.long .pj-opt{font-size:.95em}
+.pj-opt.dim{opacity:.25}
+.pj-opt.right{transform:scale(1.03);box-shadow:0 0 0 .2em #fff,0 0 0 .4em var(--ink)}
+.pj-imgs{display:grid;grid-template-columns:1fr 1fr;gap:1vh;flex:1;min-height:0}
+.pj-imgs img{width:100%;height:100%;object-fit:contain;min-height:0}
+.pj-imgs.one{grid-template-columns:1fr}
+.pj-clues{list-style:none;padding:0;margin:.4em 0}
+.pj-clues li{font-size:1.5em;font-weight:600;padding:.35em .6em;margin:.3em 0;background:#fff6cf;border:.08em solid var(--ink);border-radius:.4em}
+.pj-clues li b{font-family:var(--comic-font);font-weight:400;color:var(--red);margin-right:.5em}
+.pj-box{margin-top:.6em;padding:.6em 1em;border-radius:.5em;font-size:1.3em;font-weight:700;border:.12em solid var(--ink);box-shadow:.2em .2em 0 var(--ink)}
+.pj-hint{background:var(--yellow)}
+.pj-sol{background:var(--ok);color:#fff}
+.pj-sol .n{font-size:.75em;font-weight:500;margin-top:.3em}
+.pj-board{position:fixed;top:3vh;right:2vw;width:19vw;padding:.6em .8em;font-size:.85em}
+.pj-board h3{font-family:var(--comic-font);font-weight:400;margin:0 0 .3em;font-size:1.3em;color:var(--red)}
+.pj-board div{display:flex;justify-content:space-between;gap:.5em;padding:.15em 0;font-weight:600}
+.pj-board span{overflow:hidden;text-overflow:ellipsis;white-space:nowrap}
+.pj-center{flex:1;display:flex;flex-direction:column;align-items:center;justify-content:center;text-align:center;gap:2.5vh}
+.pj-title{font-size:4em}
+.pj-teams{display:flex;flex-wrap:wrap;gap:.5em;justify-content:center;max-width:80vw}
+.pj-teams span{background:#fff;padding:.3em .8em;border-radius:99px;border:.1em solid var(--ink);font-weight:700;box-shadow:.12em .12em 0 var(--ink)}
+.pj-buzz{font-size:1.4em;margin-top:.4em}
+.pj-pod{width:min(70vw,1100px)}
+.pj-pod h2{font-family:var(--comic-font);font-weight:400;font-size:2.4em;color:#fff;text-shadow:.08em .08em 0 var(--ink)}
+.pj-pod .pod{background:#fff;border:.12em solid var(--ink);box-shadow:.25em .25em 0 var(--ink);color:var(--ink);font-size:1.4em}
+.pj-pod .ppts{font-family:var(--comic-font);font-weight:400;color:var(--red)}
+.gain{font-size:.65em;color:var(--ok)}
+/* a posizioni, a fine manche: classifica della manche e generale affiancate */
+.pj-pods{display:flex;gap:3vw;align-items:flex-start;justify-content:center;width:min(92vw,1500px)}
+.pj-pods .pj-pod{flex:1;width:auto}
+body.proj .qr{border:.2em solid var(--ink);box-shadow:.3em .3em 0 var(--ink)}
+.pj-fs{position:fixed;bottom:1vh;right:1vw;opacity:.4;font-size:12px}
+.pj-snd{position:fixed;bottom:1vh;left:1vw;font-size:14px;font-weight:700;background:var(--yellow);border:2px solid var(--ink);border-radius:6px;padding:4px 10px;cursor:pointer}
+</style>
+</head>
+<body>
+<h1 id="title">🎲 Quiz Night</h1>
+<div id="app"></div>
+<!-- fuori da #app: se la pagina si ridisegna mentre la finestra di scelta è aperta, il file scelto non va perso -->
+<input type="file" id="pickDocx" hidden accept=".docx,application/vnd.openxmlformats-officedocument.wordprocessingml.document" onchange="loadDocx(this.files[0]); this.value=''">
+<input type="file" id="pickBg" hidden accept="image/jpeg,image/png" onchange="loadBg(this)">
+
+<script>
+/* CONFIGURAZIONE: sostituisci con l'URL del tuo database Firebase */
+const DB_URL = "https://quiz-aa578-default-rtdb.europe-west1.firebasedatabase.app/";
+
+const PARAMS = new URLSearchParams(location.search);
+/* ?demo: tutto resta nel browser (localStorage), utile per provare senza toccare Firebase */
+const DEMO = PARAMS.has("demo");
+/* L'indirizzo senza parametri è quello dei concorrenti. Il presentatore entra con ?regia=<parola segreta>:
+   qui c'è solo l'impronta della parola, così leggere il codice non basta a scoprirla. In modalità prova basta ?regia */
+const REGIA_HASH = "105ekgnjmg7";
+const hashWord = s => {
+  let h1 = 0xdeadbeef, h2 = 0x41c6ce57;
+  for (const ch of String(s).trim().toLowerCase()) {
+    const c = ch.codePointAt(0);
+    h1 = Math.imul(h1 ^ c, 2654435761);
+    h2 = Math.imul(h2 ^ c, 1597334677);
+  }
+  h1 = Math.imul(h1 ^ (h1 >>> 16), 2246822507) ^ Math.imul(h2 ^ (h2 >>> 13), 3266489909);
+  h2 = Math.imul(h2 ^ (h2 >>> 16), 2246822507) ^ Math.imul(h1 ^ (h1 >>> 13), 3266489909);
+  return (4294967296 * (2097151 & h2) + (h1 >>> 0)).toString(36);
+};
+const IS_PROJ = PARAMS.has("proiettore");
+/* la lavagna (tablet per le prove di disegno) è del presentatore: vuole la stessa parola segreta */
+const WANTS_HOST = !IS_PROJ && (PARAMS.has("regia") || PARAMS.has("lavagna"));
+const IS_HOST = WANTS_HOST && (DEMO || hashWord(PARAMS.get("regia") || "") === REGIA_HASH);
+const IS_BOARD = IS_HOST && PARAMS.has("lavagna");
+const IS_PLAYER = !IS_HOST && !IS_PROJ;
+const HOST_TABS = ["Gioco", "Domande", "Squadre", "QR"];
+
+/* finto database con la stessa interfaccia di Firebase usata qui; le schede dello stesso browser si sincronizzano */
+function demoDB(){
+  const KEY = "qnDemo", subs = [];
+  const load = () => { try { return JSON.parse(localStorage.getItem(KEY)) || {}; } catch(e) { return {}; } };
+  let tree = load();
+  const parts = p => String(p || "").split("/").filter(Boolean);
+  const get = p => parts(p).reduce((o,k) => o == null ? null : o[k], tree) ?? null;
+  const clone = v => v == null ? null : JSON.parse(JSON.stringify(v));
+  const fix = v => Array.isArray(v) ? v.map(fix) : v && typeof v === "object" ? (v[".sv"] ? Date.now() : Object.fromEntries(Object.entries(v).map(([k,x]) => [k, fix(x)]))) : v;
+  function put(p, v){
+    const ks = parts(p);
+    if (!ks.length) { tree = v || {}; return; }
+    let o = tree;
+    ks.slice(0,-1).forEach(k => { if (!o[k] || typeof o[k] !== "object") o[k] = {}; o = o[k]; });
+    if (v == null) delete o[ks[ks.length-1]]; else o[ks[ks.length-1]] = v;
+  }
+  const notify = () => subs.forEach(s => s.cb({ val: () => clone(get(s.path)) }));
+  function commit(){
+    try { localStorage.setItem(KEY, JSON.stringify(tree)); }
+    catch(e) { alert("Modalità prova: spazio del browser esaurito (" + e.message + ")"); }
+    notify();
+    return Promise.resolve();
+  }
+  addEventListener("storage", e => { if (e.key === KEY) { tree = load(); notify(); } });
+  const ref = path => ({
+    on(ev, cb){
+      if (path === ".info/serverTimeOffset") return cb({ val: () => 0 });
+      subs.push({path, cb});
+      setTimeout(() => cb({ val: () => clone(get(path)) }));
+    },
+    once: () => Promise.resolve({ val: () => clone(get(path)) }),
+    set: v => { put(path, fix(v)); return commit(); },
+    remove: () => { put(path, null); return commit(); },
+    update: obj => { Object.entries(obj).forEach(([k,v]) => put((path ? path + "/" : "") + k, fix(v))); return commit(); }
+  });
+  return { ref };
+}
+
+let DB;
+if (DEMO) DB = demoDB();
+else { firebase.initializeApp({ databaseURL: DB_URL }); DB = firebase.database(); }
+
+let ST = {};
+let SECRET = {};   // risposte e note: le legge solo il presentatore
+const IMG = {};    // cache delle immagini già scaricate
+let tab = "Gioco";
+let myTeam = localStorage.getItem("qnTeam") || "";
+let doneKey = null;
+let upMsg = "";
+/* differenza tra l'orologio locale e quello di Firebase: tutti i dispositivi usano la stessa ora */
+let OFFSET = 0;
+DB.ref(".info/serverTimeOffset").on("value", s => { OFFSET = s.val() || 0; });
+const now = () => Date.now() + OFFSET;
+const TS = firebase.database.ServerValue.TIMESTAMP;
+
+/* ---------- utilità ---------- */
+const h = s => String(s ?? "").replace(/[&<>"']/g, c => ({"&":"&amp;","<":"&lt;",">":"&gt;",'"':"&quot;","'":"&#39;"}[c]));
+const uid = () => Date.now().toString(36) + Math.random().toString(36).slice(2,6);
+const cfg = () => ST.config || { phase: "copertina", idx: 0 };
+/* i modelli delle prove già trasformati in turni non contano più: al loro posto ci sono i turni */
+const qs = () => Object.entries(ST.questions || {}).map(([id,q]) => ({id, ...q})).filter(q => !q.expanded).sort((a,b) => a.order - b.order);
+const teams = () => Object.entries(ST.teams || {}).map(([id,t]) => ({id, ...t}));
+const curQ = () => { const l = qs(); return l[Math.min(Math.max(cfg().idx || 0, 0), l.length - 1)]; };
+const roundOf = q => (q && ST.rounds?.[q.round]) || {};
+const quizName = () => ST.settings?.name || "Quiz Night";
+const LETTERS = "ABCDEFGH";
+const COLS = ["#e74c3c","#2980b9","#f1c40f","#27ae60","#8e44ad","#e67e22"];
+const optStyle = i => `background:${COLS[i%COLS.length]};color:${i%COLS.length===2?'#000':'#fff'}`;
+const TYPE_NAMES = { scelta: "scelta multipla", prenota: "prenotazione a voce", indizi: "indizi progressivi", testo: "risposta scritta",
+  prova: "prova pratica", intesa: "intesa vincente" };
+const isBuzz = q => q.type === "prenota" || q.type === "indizi" || q.type === "prova";
+const teamName = id => ST.teams?.[id]?.name || "?";
+/* impostazione CLASSIFICA: sempre (anche nell'angolo durante le domande), fine manche, oppure solo a metà gara e alla fine */
+const BOARD_NAMES = { sempre: "sempre, anche durante le domande", manche: "solo tra una manche e l'altra", meta: "solo a metà gara e alla fine" };
+const boardSetting = () => ST.settings?.board || "sempre";
+const showPartial = q => {
+  if (boardSetting() !== "meta") return true;
+  const rs = Object.values(ST.rounds || {}).sort((a,b) => a.order - b.order);
+  return roundOf(q).order === rs[Math.ceil(rs.length / 2) - 1]?.order;
+};
+const qOpts = q => String(q.options || "").split("|").filter(Boolean);
+/* Firebase può restituire le liste come oggetti {0:…,1:…} */
+const arr = v => Array.isArray(v) ? v : Object.values(v || {});
+const qClues = q => arr(q.clues);
+const qImgs = q => arr(q.images);
+/* indizi fatti di immagini: una domanda a indizi senza INDIZIO scritti usa ogni sua immagine come un indizio */
+const imgClues = q => q.type === "indizi" && !qClues(q).length && qImgs(q).length > 0;
+const clueCount = q => imgClues(q) ? qImgs(q).length : qClues(q).length;
+const qSecs = q => q.secs ?? 30;
+/* intesa: parole ancora da giocare (le passate tornano in fondo) e parole indovinate */
+const intesaState = q => {
+  const s = ST.intesa?.[q.id] || {};
+  return { queue: s.started ? arr(s.queue) : [...Array(Number(q.nwords) || 0).keys()], ok: arr(s.ok) };
+};
+/* nelle domande a indizi il valore cala di 1 per ogni indizio svelato; nell'intesa vale ogni parola indovinata */
+const ptsNow = q => q.type === "indizi" ? Math.max(1, (Number(q.points) || 1) - ((cfg().clues || 1) - 1))
+  : q.type === "intesa" ? intesaState(q).ok.length * (Number(q.points) || 1)
+  : Number(q.points) || 0;
+const awardVal = (q, v) => v === true ? Number(q.points) || 0 : Number(v) || 0;
+const reveal = q => (q && ST.reveal?.[q.id]) || {};
+const link = k => location.href.split("?")[0] + "?" + k + (DEMO ? "&demo" : "");
+/* la lavagna si apre con la parola segreta del presentatore */
+const boardLink = () => location.href.split("?")[0] + "?lavagna" + (DEMO ? "&demo" : "&regia=" + encodeURIComponent(PARAMS.get("regia") || ""));
+/* punti "veri" fatti con le risposte: in tutta la partita o in una sola manche */
+function rawScores(roundId){
+  const m = {};
+  teams().forEach(t => m[t.id] = 0);
+  qs().forEach(q => { if (!roundId || q.round === roundId) Object.entries(q.awarded || {}).forEach(([tid,v]) => { if (tid in m) m[tid] += awardVal(q, v); }); });
+  return m;
+}
+/* impostazione PUNTEGGIO: punti (si sommano i punti delle risposte) oppure posizioni (ogni manche dà punti in base al piazzamento) */
+const scoreMode = () => ST.settings?.score || "punti";
+const SCORE_NAMES = { punti: "somma dei punti delle risposte", posizioni: "a posizioni: ogni manche dà 4 punti all'ultimo e 1 in più per ogni posto" };
+const roundsSorted = () => Object.entries(ST.rounds || {}).map(([id, r]) => ({id, ...r})).sort((a,b) => a.order - b.order);
+/* una manche è finita quando di tutte le sue domande è stata mostrata la soluzione */
+const roundDone = rid => { const l = qs().filter(q => q.round === rid); return l.length > 0 && l.every(q => ST.reveal?.[q.id]); };
+/* piazzamento in una manche: l'ultimo prende 4, ogni posto in più 1 punto; a pari merito gli stessi punti, quelli del posto migliore */
+function roundPlacing(rid){
+  const raw = rawScores(rid), tl = teams().filter(t => t.confirmed);
+  const sorted = tl.map(t => raw[t.id]).sort((a,b) => b - a);
+  return Object.fromEntries(tl.map(t => [t.id, 4 + tl.length - 1 - sorted.indexOf(raw[t.id])]));
+}
+function scores(){
+  if (scoreMode() !== "posizioni") return rawScores();
+  const m = {};
+  teams().forEach(t => m[t.id] = 0);
+  roundsSorted().filter(r => roundDone(r.id)).forEach(r => Object.entries(roundPlacing(r.id)).forEach(([tid, v]) => m[tid] += v));
+  return m;
+}
+/* a pari punti passa avanti chi ha fatto più punti con le risposte */
+const ranked = () => {
+  const sc = scores(), raw = rawScores();
+  return teams().filter(t => t.confirmed).sort((a,b) => sc[b.id] - sc[a.id] || raw[b.id] - raw[a.id]).map(t => ({...t, pts: sc[t.id], raw: raw[t.id]}));
+};
+/* classifica di una manche: punti fatti nella manche e, a posizioni, i punti guadagnati in classifica */
+const roundRanked = rid => {
+  const raw = rawScores(rid), pl = roundPlacing(rid);
+  return teams().filter(t => t.confirmed).sort((a,b) => raw[b.id] - raw[a.id]).map(t => ({...t, pts: raw[t.id], gain: pl[t.id]}));
+};
+/* nella classifica dal vivo, a posizioni, durante una manche conta la manche in corso */
+const liveRound = () => { const q = curQ(); return scoreMode() === "posizioni" && q && !roundDone(q.round) && !["copertina", "iscrizione"].includes(cfg().phase) ? q.round : ""; };
+function board(me, rid){
+  return (rid ? roundRanked(rid) : ranked()).map(t =>
+    `<div class="row ${t.id===me?'me':''}"><span>${h(t.name)}</span><strong>${t.pts}${rid && roundDone(rid) ? ` <span class="muted">(+${t.gain})</span>` : ""}</strong></div>`).join("")
+    || `<p class="muted">Nessuna squadra confermata.</p>`;
+}
+function podium(me, title = "🏆 Classifica", rid = ""){
+  const medal = ["🥇","🥈","🥉"];
+  const list = rid ? roundRanked(rid) : ranked();
+  /* a pari merito stessa posizione (nella generale conta anche lo spareggio sui punti delle risposte) */
+  const place = t => list.findIndex(x => x.pts === t.pts && (rid || x.raw === t.raw));
+  return `<h2 style="text-align:center;margin:8px 0">${h(title)}</h2>` + (list.map(t =>
+    `<div class="pod ${t.id===me?'pme':''}"><span class="pos">${medal[place(t)] || place(t) + 1}</span><span class="pname">${h(t.name)}</span><span class="ppts">${t.pts}${rid ? ` <small class="gain">+${t.gain}</small>` : ""}</span></div>`).join("")
+    || `<p style="text-align:center">Nessuna squadra confermata.</p>`);
+}
+/* squadre prenotate in ordine di tempo (domande a prenotazione e a indizi) */
+function buzzes(q){
+  return teams().filter(t => t.confirmed && t.id !== q.team && ST.answers?.[t.id]?.[q.id])
+    .map(t => ({...t, t: ST.answers[t.id][q.id].t})).sort((a,b) => a.t - b.t);
+}
+
+/* intesa: la parola di turno in grande (la guarda solo chi dà gli indizi) e i due pulsanti */
+function intesaTools(q){
+  const s = intesaState(q), words = arr((SECRET[q.id] || {}).words), cur = s.queue[0];
+  return `<div class="secret-word">${cur === undefined ? "Parole finite!" : `🤫 <strong>${h(words[cur] || "")}</strong>`}</div>
+    <div class="intesa-btns">
+      <button class="btn ok" onclick="intesaMark(true)" ${cur === undefined ? "disabled" : ""}>✓ Indovinata</button>
+      <button class="btn ghost" onclick="intesaMark(false)" ${cur === undefined || s.queue.length < 2 ? "disabled" : ""}>Passo →</button>
+      <span class="tag">Indovinate ${s.ok.length} di ${words.length}</span>
+    </div>`;
+}
+function intesaMark(right){
+  const q = curQ(), r = remaining();
+  /* pausa breve: i clic sono veloci, ma un doppio clic non deve contare due parole */
+  if (tooFast("intesa", 350) || cfg().phase !== "domanda" || (r !== null && r <= 0) || q.type !== "intesa") return;
+  const s = intesaState(q);
+  if (!s.queue.length) return;
+  const w = s.queue.shift();
+  if (right) s.ok.push(w); else s.queue.push(w);
+  DB.ref("quiz/intesa/" + q.id).set({ started: true, queue: s.queue, ok: s.ok });
+}
+
+/* regia: chi ha prenotato, ben visibile, accanto al pulsante per riaprire */
+function buzzRow(q){
+  const b = buzzes(q);
+  const who = b.length
+    ? `🔔 <strong>${h(b[0].name)}</strong> ha prenotato${b.length > 1 ? `<span class="buzz-next">poi: ${b.slice(1).map(t => h(t.name)).join(", ")}</span>` : ""}`
+    : "In attesa di prenotazioni…";
+  return `<div class="buzz-row"><div class="buzz-box ${b.length ? "on" : ""}">${who}</div>
+    <button class="btn ghost" onclick="clearBuzz()" ${b.length ? "" : "disabled"}>Riapri prenotazioni</button></div>`;
+}
+
+/* ---------- immagini: si scaricano solo quando servono ---------- */
+const img = (id, cls = "") => id ? `<img class="${cls}" data-img="${h(id)}" alt="">` : "";
+function fillImgs(){
+  document.querySelectorAll("img[data-img]").forEach(e => {
+    const id = e.dataset.img;
+    if (IMG[id]) { if (e.src !== IMG[id]) e.src = IMG[id]; }
+    else if (IMG[id] === undefined) {
+      IMG[id] = null;
+      DB.ref("quizImg/" + id).once("value").then(s => { IMG[id] = s.val() || ""; fillImgs(); });
+    }
+  });
+}
+
+/* ---------- tempo ---------- */
+function remaining(){
+  const c = cfg();
+  if (c.phase !== "domanda" || !c.start || c.secs === 0) return null;
+  return c.start + (c.secs ?? 30) * 1000 - now();
+}
+setInterval(() => {
+  const r = remaining();
+  if (r === null) return;
+  const s = Math.max(0, Math.ceil(r / 1000));
+  document.querySelectorAll(".tick").forEach(e => e.textContent = s + " s");
+  if (r <= 0 && doneKey !== cfg().start) {
+    doneKey = cfg().start;
+    if (IS_PLAYER) render();
+    else if (IS_HOST) DB.ref("quiz/config/phase").set("risposte");
+  }
+}, 500);
+
+/* ---------- render (preserva i valori degli input) ---------- */
+function render(){
+  const keep = {};
+  document.querySelectorAll("#app input, #app textarea, #app select").forEach(e => { if (e.id && e.type !== "file") keep[e.id] = e.value; });
+  document.getElementById("title").textContent = "🎲 " + quizName() + (DEMO ? " · prova" : "");
+  document.title = quizName();
+  document.body.classList.toggle("proj", IS_PROJ);
+  document.body.classList.toggle("lavagna", IS_BOARD);
+  const app = document.getElementById("app");
+  if (IS_PROJ) app.innerHTML = viewProj();
+  else if (IS_BOARD) viewBoard();
+  else if (WANTS_HOST && !IS_HOST) app.innerHTML = `<div class="card" style="text-align:center"><p class="big">🔒 Parola segreta sbagliata</p><p>Controlla l'indirizzo del presentatore: <code>?regia=</code> seguito dalla parola segreta.</p></div>`;
+  else if (IS_PLAYER) app.innerHTML = viewPlayer();
+  else app.innerHTML = `<nav>${HOST_TABS.map(t => `<button class="${t===tab?'on':''}" onclick="setTab('${t}')">${t}</button>`).join("")}</nav><div id="main">${viewHost()}</div>`;
+  makeQR();
+  fillImgs();
+  if (IS_PROJ) { fitProj(); drawProj(); }
+  Object.entries(keep).forEach(([k,v]) => { const e = document.getElementById(k); if (e) e.value = v; });
+}
+function setTab(t){ tab = t; render(); }
+/* proiettore: se il riquadro non ci sta (schermo largo e basso, tanti indizi, soluzione in fondo) rimpicciolisce il testo finché entra */
+function fitProj(){
+  const m = document.querySelector(".pj-main");
+  if (!m) return;
+  m.style.fontSize = "";
+  for (let s = 0.95; m.scrollHeight > m.clientHeight + 1 && s >= 0.5; s -= 0.05) m.style.fontSize = s.toFixed(2) + "em";
+}
+if (IS_PROJ) {
+  addEventListener("resize", () => { fitProj(); drawProj(); });
+  document.fonts?.ready.then(fitProj);
+}
+/* proiettore: tromba a ogni prenotazione (fanfara alla prima, una nota alle successive) e gong quando le risposte si chiudono.
+   Il browser blocca i suoni finché non si clicca o si preme un tasto sulla pagina */
+let AC = null, buzzSeen = { key: "", n: 0 }, lastQ = { id: "", phase: "" }, lastTest;
+/* il presentatore fa suonare il proiettore per provare il volume delle casse */
+const testSound = kind => setConfig({ soundTest: { kind, at: TS } });
+const soundOn = () => AC?.state === "running";
+function unlockSound(){
+  try { AC = AC || new (window.AudioContext || window.webkitAudioContext)(); } catch (e) { return; }
+  if (!soundOn()) AC.resume().then(render, () => {});
+}
+/* ottone: dente di sega con un filtro che si apre all'attacco, vibrato sulle note lunghe */
+function trumpet(first){
+  if (!soundOn()) return;
+  const out = AC.createGain();
+  out.gain.value = first ? 0.35 : 0.25;
+  out.connect(AC.destination);
+  let t = AC.currentTime;
+  (first ? [[523, .13], [523, .13], [523, .13], [784, .7]] : [[784, .35]]).forEach(([fr, d]) => {
+    const o = AC.createOscillator(), filt = AC.createBiquadFilter(), g = AC.createGain(), lfo = AC.createOscillator(), lg = AC.createGain();
+    o.type = "sawtooth"; o.frequency.value = fr;
+    lfo.frequency.value = 5.5; lg.gain.value = d > .3 ? 6 : 0; lfo.connect(lg).connect(o.frequency);
+    filt.type = "lowpass"; filt.Q.value = 2;
+    filt.frequency.setValueAtTime(400, t);
+    filt.frequency.exponentialRampToValueAtTime(3200, t + .05);
+    filt.frequency.exponentialRampToValueAtTime(1800, t + d);
+    g.gain.setValueAtTime(0.0001, t);
+    g.gain.exponentialRampToValueAtTime(1, t + .03);
+    g.gain.setValueAtTime(1, t + d - .05);
+    g.gain.exponentialRampToValueAtTime(0.0001, t + d + .08);
+    o.connect(filt).connect(g).connect(out);
+    o.start(t); o.stop(t + d + .1); lfo.start(t); lfo.stop(t + d + .1);
+    t += d + .04;
+  });
+}
+/* gong: parziali non armoniche che si spengono a velocità diverse, più il colpo del battente */
+function gong(){
+  if (!soundOn()) return;
+  const t = AC.currentTime, out = AC.createGain();
+  out.gain.value = 0.5;
+  out.connect(AC.destination);
+  [[1, 1, 4], [1.48, .6, 3], [2.13, .45, 2.2], [2.6, .3, 1.6], [3.4, .2, 1.1], [4.7, .12, .7]].forEach(([r, a, d]) => {
+    const o = AC.createOscillator(), g = AC.createGain();
+    o.frequency.setValueAtTime(98 * r * 1.01, t);
+    o.frequency.exponentialRampToValueAtTime(98 * r, t + .4);
+    g.gain.setValueAtTime(0.0001, t);
+    g.gain.exponentialRampToValueAtTime(a, t + .01);
+    g.gain.exponentialRampToValueAtTime(0.0001, t + d);
+    o.connect(g).connect(out); o.start(t); o.stop(t + d);
+  });
+  const n = AC.createBufferSource(), b = AC.createBuffer(1, AC.sampleRate * .08, AC.sampleRate), ch = b.getChannelData(0);
+  for (let i = 0; i < ch.length; i++) ch[i] = (Math.random() * 2 - 1) * (1 - i / ch.length);
+  const f = AC.createBiquadFilter(), ng = AC.createGain();
+  f.type = "lowpass"; f.frequency.value = 900; ng.gain.value = .5;
+  n.buffer = b; n.connect(f).connect(ng).connect(out); n.start(t);
+}
+/* suona solo per cambiamenti visti mentre la pagina è aperta: chi apre o ricarica il proiettore non sente niente */
+function projSounds(){
+  const c = cfg(), q = curQ();
+  const st = c.soundTest;
+  if (st && lastTest !== undefined && st.at !== lastTest) st.kind === "gong" ? gong() : trumpet(true);
+  lastTest = st?.at ?? null;
+  /* tempo scaduto o risposte chiuse: la domanda passa da "domanda" a risposte o soluzione */
+  if (q && lastQ.id === q.id && lastQ.phase === "domanda" && ["risposte", "soluzione"].includes(c.phase)) gong();
+  lastQ = { id: q?.id || "", phase: c.phase };
+  /* prenotazioni nuove della stessa domanda: riaprire le prenotazioni o cambiare domanda riparte da zero */
+  const key = q && c.phase === "domanda" && isBuzz(q) ? q.id + ":" + (c.clueAt || c.start) : "";
+  const n = key ? buzzes(q).length : 0;
+  if (key && key === buzzSeen.key && n > buzzSeen.n) trumpet(buzzSeen.n === 0);
+  buzzSeen = { key, n };
+}
+if (IS_PROJ) ["click", "keydown"].forEach(e => addEventListener(e, unlockSound));
+
+DB.ref("quiz").on("value", s => {
+    ST = s.val() || {};
+    /* vecchie versioni salvavano lo sfondo dentro quiz/: lo sposto nel suo nodo */
+    if (IS_HOST && ST.settings?.bg) DB.ref("quizBg").set(ST.settings.bg).then(() => DB.ref("quiz/settings/bg").remove());
+    if (IS_PROJ) projSounds();
+    render();
+  },
+  e => { document.getElementById("app").innerHTML = "<p>Errore database: " + e.message + "</p>"; });
+if (IS_HOST) DB.ref("quizSecret").on("value", s => { SECRET = s.val() || {}; render(); });
+/* lo sfondo sta in un nodo separato: si scarica una volta sola e non a ogni risposta */
+if (!IS_PROJ) DB.ref("quizBg").on("value", s => {
+  document.body.classList.toggle("custom-bg", !!s.val());
+  document.body.style.backgroundImage = s.val() ? `url("${s.val()}")` : "";
+});
+
+/* ---------- PRESENTATORE ---------- */
+function viewHost(){
+  if (tab === "Domande") return hostQuestions();
+  if (tab === "Squadre") return hostTeams();
+  if (tab === "Gioco") return hostGame();
+  return `<div class="card" style="text-align:center"><p><strong>Concorrenti</strong>: inquadrano il codice per collegarsi.</p><div class="qr" data-qr="${h(link("p=1"))}"></div><p class="muted" style="word-break:break-all">${h(link("p=1"))}</p></div>
+    <div class="card"><strong>Proiettore</strong><p class="muted">Apri questo indirizzo sul computer collegato al proiettore e premi F11 per lo schermo intero.</p><p style="word-break:break-all"><a href="${h(link("proiettore"))}" target="_blank">${h(link("proiettore"))}</a></p></div>
+    <div class="card"><strong>Lavagna (prove di disegno)</strong><p class="muted">Apri questo indirizzo sul tablet o sul telefono su cui si disegna: quello che si disegna compare sul proiettore. Contiene la parola segreta del presentatore: non mostrarlo ai giocatori.</p><p style="word-break:break-all"><a href="${h(boardLink())}" target="_blank">${h(boardLink())}</a></p></div>`;
+}
+
+function hostQuestions(){
+  const rounds = Object.entries(ST.rounds || {}).map(([id,r]) => ({id, ...r})).sort((a,b) => a.order - b.order);
+  const list = rounds.map(r => {
+    const rq = qs().filter(q => q.round === r.id);
+    return `<div class="rhead">${h(r.title)} <span class="tag">${TYPE_NAMES[r.type] || r.type} · ${rq.length} domande</span></div>` + rq.map(q => {
+      const sec = SECRET[q.id] || {};
+      const todo = /da compilare/i.test(sec.answer || "");
+      return `<div class="row"><div>${q.cat ? `<span class="tag">${h(q.cat)}</span> ` : ""}<span class="tag">${q.points} pt${q.type==="indizi"?" al 1° indizio":q.type==="intesa"?" a parola":""} · ${qSecs(q) ? qSecs(q) + " s" : "senza timer"}</span><br>${h(q.text)}
+        ${qOpts(q).length ? `<div class="muted">${qOpts(q).map((o,i) => LETTERS[i] + ") " + h(o)).join("<br>")}</div>` : ""}
+        ${qClues(q).length ? `<div class="muted">${qClues(q).map((c,i) => (i+1) + ". " + h(c)).join("<br>")}</div>` : ""}
+        ${qImgs(q).length ? `<div class="thumbs">${qImgs(q).map(id => img(id)).join("")}</div>` : ""}
+        ${q.template ? `<div class="muted">Una prova per squadra${q.type === "intesa" ? " (parole divise in parti uguali)" : ""}. Parole (${arr(sec.words).length}): <strong>${h(arr(sec.words).join(", "))}</strong></div>`
+          : `<div class="${todo ? "msg-err" : "muted"}">${q.type === "intesa" ? "Parole" : "Risposta"}: <strong>${h(sec.answer)}</strong>${q.team ? ` · tocca a ${h(teamName(q.team))}` : ""}</div>`}
+        ${sec.hint ? `<div class="muted">Aiuto: ${h(sec.hint)}</div>` : ""}</div></div>`;
+    }).join("");
+  }).join("") || `<p class="muted">Nessuna domanda caricata.</p>`;
+  return `
+  <div class="card">
+    <strong>Carica le domande da Word</strong>
+    <p class="muted">Scegli il file .docx della serata. Sostituisce domande, risposte e punteggi attuali; le squadre restano.</p>
+    <button class="btn" onclick="document.getElementById('pickDocx').click()">📄 Scegli il file Word…</button>
+    <div id="upMsg">${upMsg}</div>
+    <p class="muted">Non sai da dove partire? <a href="modello-domande.docx" download>Scarica il modello</a>.</p>
+  </div>
+  ${resetCard()}
+  <div class="card">${list}</div>
+  ${settingsCard()}`;
+}
+
+/* ---------- lettura del file Word ---------- */
+const LABEL = /^\s*(QUIZ|CLASSIFICA|PUNTEGGIO|COPERTINA|CHIUSURA|MANCHE|APERTURA|TIPO|PUNTI|TEMPO|TITOLO|DOMANDA|INDIZIO|AIUTO|RISPOSTA|NOTE|PAROLA|PAROLE)\s*:\s*(.*)$/i;
+const OPTION = /^\s*([A-H])\s*[\)\.\-–:]\s+(.+)$/;
+/* prove pratiche: una per squadra, con le parole estratte dall'elenco della manche */
+const TRIAL = ["prova", "intesa"];
+/* impostazione CLASSIFICA: quando il proiettore mostra la classifica */
+function boardMode(v){
+  v = v.toLowerCase();
+  if (v.includes("sempre")) return "sempre";
+  if (v.includes("met")) return "meta";
+  if (v.includes("manche") || v.includes("prova") || v.includes("tra")) return "manche";
+  return "";
+}
+function typeOf(v){
+  v = v.toLowerCase();
+  if (v.includes("intesa")) return "intesa";
+  if (v.includes("prova") || v.includes("mimo") || v.includes("disegn") || v.includes("lavagna") || v.includes("cant")) return "prova";
+  if (v.includes("indizi")) return "indizi";
+  if (v.includes("prenot")) return "prenota";
+  if (v.includes("scelta") || v.includes("multipla")) return "scelta";
+  if (v.includes("testo") || v.includes("scritta") || v.includes("libera")) return "testo";
+  return "";
+}
+async function parseDocx(file){
+  const zip = await JSZip.loadAsync(file);
+  const docXml = await zip.file("word/document.xml")?.async("string");
+  if (!docXml) throw new Error("questo non sembra un file Word (.docx)");
+  const relXml = await zip.file("word/_rels/document.xml.rels")?.async("string") || "";
+  const rels = {};
+  new DOMParser().parseFromString(relXml, "application/xml").querySelectorAll("Relationship")
+    .forEach(r => rels[r.getAttribute("Id")] = "word/" + r.getAttribute("Target").replace(/^\/?word\//, "").replace(/^\//, ""));
+  const doc = new DOMParser().parseFromString(docXml, "application/xml");
+  const body = doc.getElementsByTagName("w:body")[0];
+  const paras = [...body.getElementsByTagName("w:p")].map(p => {
+    let text = "";
+    const imgs = [];
+    for (const n of p.getElementsByTagName("*")) {
+      if (n.nodeName === "w:t") text += n.textContent;
+      else if (n.nodeName === "w:tab" || n.nodeName === "w:br") text += " ";
+      else if (n.nodeName === "a:blip" && n.getAttribute("r:embed")) imgs.push(rels[n.getAttribute("r:embed")]);
+      else if (n.nodeName === "v:imagedata" && n.getAttribute("r:id")) imgs.push(rels[n.getAttribute("r:id")]);
+    }
+    return { text: text.replace(/\s+/g, " ").trim(), list: p.getElementsByTagName("w:numPr").length > 0, imgs: imgs.filter(Boolean) };
+  });
+
+  const P = { name: "", board: "sempre", score: "punti", cover: "", end: "", rounds: [], errors: [], warnings: [] };
+  let round = null, q = null, field = "", slot = "", nq = 0;
+  const where = () => q ? `Domanda ${nq} (${round.title})` : round ? `Manche "${round.title}"` : "Inizio file";
+  const num = (v, what) => { const n = parseInt(v, 10); if (isNaN(n) || n < 0) { P.errors.push(`${where()}: ${what} "${v}" non è un numero`); return null; } return n; };
+  const newQ = text => {
+    nq++;
+    q = { text, cat: round._cat || "", options: [], clues: [], images: [], words: [], answer: "", hint: "", notes: "" };
+    round._cat = "";
+    round.questions.push(q);
+  };
+  for (const p of paras) {
+    for (const src of p.imgs) {
+      if (slot === "COPERTINA" && !P.cover) P.cover = src;
+      else if (slot === "CHIUSURA" && !P.end) P.end = src;
+      else if (slot === "APERTURA" && round && !round.cover) round.cover = src;
+      else if (q) q.images.push(src);
+      else if (round && !round.cover) round.cover = src;
+      else P.warnings.push(`${where()}: un'immagine non appartiene a nessuna domanda ed è stata ignorata`);
+    }
+    if (p.imgs.length) slot = "";
+    const t = p.text;
+    if (!t || t.startsWith("//") || /^\s*impostazioni\s*:?\s*$/i.test(t)) continue;
+    const m = t.match(LABEL);
+    if (m) {
+      const key = m[1].toUpperCase(), val = m[2].trim();
+      field = key; slot = "";
+      if (key === "QUIZ") P.name = val;
+      else if (key === "PUNTEGGIO") { P.score = /posiz|piazz/i.test(val) ? "posizioni" : /punt|somma|come/i.test(val) ? "punti" : ""; if (!P.score) P.errors.push(`PUNTEGGIO "${val}" sconosciuto (usa: punti oppure posizioni)`); }
+      else if (key === "CLASSIFICA") { P.board = boardMode(val); if (!P.board) P.errors.push(`CLASSIFICA "${val}" sconosciuta (usa: sempre, fine manche, metà e fine)`); }
+      else if (key === "COPERTINA" || key === "CHIUSURA" || key === "APERTURA") slot = key;
+      else if (key === "MANCHE") { round = { title: val || "Manche", type: "", points: null, secs: null, cover: "", questions: [] }; P.rounds.push(round); q = null; }
+      else if (!round) P.errors.push(`"${key}:" compare prima della prima MANCHE`);
+      else if (key === "TIPO") { const ty = typeOf(val); if (!ty) P.errors.push(`${where()}: tipo "${val}" sconosciuto (usa scelta, prenotazione, indizi, testo, prova, disegno o intesa)`); (q || round).type = ty; (q || round).draw = ty === "prova" && /disegn|lavagna/i.test(val); }
+      else if (key === "PUNTI") { const n = num(val, "PUNTI"); if (n !== null) (q || round).points = n; }
+      else if (key === "TEMPO") { const n = num(val, "TEMPO"); if (n !== null) (q || round).secs = n; }
+      else if (key === "TITOLO") { round._cat = val; }
+      else if (key === "DOMANDA") newQ(val);
+      else if (key === "PAROLA" || key === "PAROLE") {
+        /* nelle prove la DOMANDA è facoltativa: l'elenco di parole basta */
+        if (!q) newQ("");
+        if (val) q.words.push(...(key === "PAROLE" ? val.split(/[,;]/) : [val]).map(s => s.trim()).filter(Boolean));
+      }
+      else if (!q) P.errors.push(`${where()}: "${key}:" compare prima di una DOMANDA`);
+      else if (key === "INDIZIO") q.clues.push(val);
+      else if (key === "AIUTO") q.hint = val;
+      else if (key === "RISPOSTA") q.answer = val;
+      else if (key === "NOTE") q.notes = val;
+      continue;
+    }
+    /* sotto PAROLE: una parola per riga (anche elenco puntato) */
+    if (q && field === "PAROLE") { q.words.push(...t.split(/[,;]/).map(s => s.trim()).filter(Boolean)); continue; }
+    const o = t.match(OPTION);
+    if (q && (o || p.list) && field !== "NOTE" && field !== "AIUTO") {
+      if (TRIAL.includes(q.type || round.type)) q.words.push(o ? o[2] : t);
+      else if ((q.type || round.type) === "indizi") q.clues.push(o ? o[2] : t);
+      else q.options.push(o ? o[2] : t);
+      field = "OPZIONE";
+      continue;
+    }
+    /* riga senza etichetta: continua il campo precedente */
+    if (q && field === "DOMANDA") q.text += " " + t;
+    else if (q && field === "NOTE") q.notes += " " + t;
+    else if (q && field === "AIUTO") q.hint += " " + t;
+    else if (q && field === "RISPOSTA") q.answer += " " + t;
+    else P.warnings.push(`${where()}: riga ignorata: "${t.slice(0,60)}"`);
+  }
+
+  nq = 0;
+  P.rounds.forEach(r => {
+    if (!r.type) P.errors.push(`Manche "${r.title}": manca TIPO`);
+    if (!r.questions.length) P.warnings.push(`Manche "${r.title}": nessuna domanda`);
+    r.questions.forEach(q => {
+      nq++;
+      const w = `Domanda ${nq} (${r.title})`;
+      q.type = q.type || r.type;
+      const trial = TRIAL.includes(q.type);
+      q.draw = trial && (q.draw ?? r.draw ?? false);
+      /* senza PUNTI e TEMPO: 2 punti e 30 secondi; nelle prove 60 secondi, e nell'intesa 1 punto per parola */
+      q.points = q.points ?? r.points ?? (q.type === "intesa" ? 1 : 2);
+      q.secs = q.secs ?? r.secs ?? (trial ? 60 : 30);
+      q.correct = -1;
+      if (trial) {
+        q.text = q.text || r.title;
+        if (!q.words.length) P.errors.push(`${w}: servono le parole da indovinare (righe PAROLA oppure un elenco sotto PAROLE)`);
+        return;
+      }
+      if (!q.text) P.errors.push(`${w}: manca il testo`);
+      if (!q.answer) P.errors.push(`${w}: manca RISPOSTA`);
+      else if (/da compilare/i.test(q.answer)) P.warnings.push(`${w}: risposta ancora da compilare`);
+      if (q.type === "scelta") {
+        if (q.options.length < 2) P.errors.push(`${w}: servono almeno due opzioni (A) B) ...)`);
+        const a = q.answer.trim();
+        let i = /^[A-H]\b/i.test(a) && (a.length === 1 || /^[A-H]\s*[\)\.\-–:]/i.test(a)) ? LETTERS.indexOf(a[0].toUpperCase()) : -1;
+        if (i < 0) i = q.options.findIndex(o => o.toLowerCase() === a.toLowerCase());
+        if (i < 0 || i >= q.options.length) P.errors.push(`${w}: la RISPOSTA "${a}" non corrisponde a nessuna opzione`);
+        else { q.correct = i; q.answer = LETTERS[i] + ") " + q.options[i]; }
+      }
+      if (q.type === "indizi" && !q.clues.length && !q.images.length) P.errors.push(`${w}: servono degli indizi: righe INDIZIO oppure immagini (una per indizio)`);
+    });
+  });
+  if (!nq) P.errors.push("Nel file non c'è nessuna DOMANDA");
+  return { P, zip };
+}
+
+/* ridimensiona un'immagine del Word e la trasforma in JPEG compatto */
+async function shrink(blob){
+  const url = URL.createObjectURL(blob);
+  try {
+    const im = await new Promise((ok, ko) => { const i = new Image(); i.onload = () => ok(i); i.onerror = () => ko(new Error("immagine non leggibile")); i.src = url; });
+    const max = DEMO ? 800 : 1600;
+    const sc = Math.min(1, max / im.width, max / im.height);
+    const cv = document.createElement("canvas");
+    cv.width = Math.round(im.width * sc);
+    cv.height = Math.round(im.height * sc);
+    const g = cv.getContext("2d");
+    g.fillStyle = "#000"; g.fillRect(0, 0, cv.width, cv.height);
+    g.drawImage(im, 0, 0, cv.width, cv.height);
+    return cv.toDataURL("image/jpeg", DEMO ? 0.6 : 0.8);
+  } finally { URL.revokeObjectURL(url); }
+}
+
+function setUpMsg(html){ upMsg = html; const e = document.getElementById("upMsg"); if (e) e.innerHTML = html; }
+async function loadDocx(file){
+  if (!file) return;
+  try {
+    setUpMsg("Lettura del file…");
+    const { P, zip } = await parseDocx(file);
+    const list = (a, cls) => a.length ? `<ul class="${cls}">${a.map(x => `<li>${h(x)}</li>`).join("")}</ul>` : "";
+    const nq = P.rounds.reduce((n,r) => n + r.questions.length, 0);
+    if (P.errors.length) return setUpMsg(`<p class="msg-err"><strong>Il file non è stato caricato. Da correggere:</strong></p>${list(P.errors, "msg-err")}${list(P.warnings, "msg-warn")}`);
+    const warn = playing() ? "⚠ C'È UNA PARTITA IN CORSO: punti e risposte andranno persi e si ripartirà dalla copertina.\n\n" : "";
+    if (!confirm(`${warn}Caricare "${P.name || quizName()}": ${P.rounds.length} manche, ${nq} domande?\nDomande, risposte e punteggi attuali verranno sostituiti; le squadre restano.`)) return setUpMsg("");
+
+    /* immagini: una per volta, ognuna nel suo nodo */
+    const paths = [...new Set([P.cover, P.end, ...P.rounds.flatMap(r => [r.cover, ...r.questions.flatMap(q => q.images)])].filter(Boolean))];
+    const ids = {};
+    await DB.ref("quizImg").remove();
+    for (let i = 0; i < paths.length; i++) {
+      setUpMsg(`Caricamento immagini ${i+1}/${paths.length}…`);
+      const f = zip.file(paths[i]);
+      if (!f) continue;
+      ids[paths[i]] = uid();
+      await DB.ref("quizImg/" + ids[paths[i]]).set(await shrink(await f.async("blob")));
+    }
+    const up = { "quiz/answers": null, "quiz/reveal": null, "quiz/intesa": null, "quizDraw": null, "quiz/config": { phase: "copertina", idx: 0 },
+      "quiz/settings/name": P.name || quizName(), "quiz/settings/board": P.board, "quiz/settings/score": P.score,
+      "quiz/settings/cover": ids[P.cover] || null, "quiz/settings/end": ids[P.end] || null };
+    const rounds = {}, questions = {}, secret = {};
+    let order = 0;
+    P.rounds.forEach((r, ri) => {
+      const rid = uid() + ri;
+      rounds[rid] = { order: ri, title: r.title, type: r.type, cover: ids[r.cover] || "" };
+      r.questions.forEach(q => {
+        const qid = uid() + order;
+        questions[qid] = { order: order++, round: rid, type: q.type, text: q.text, cat: q.cat, points: q.points, secs: q.secs,
+          options: q.options.join("|"), clues: q.clues, images: q.images.map(p => ids[p]).filter(Boolean), hasHint: !!q.hint };
+        secret[qid] = { answer: q.answer, correct: q.correct, hint: q.hint, notes: q.notes };
+        /* prova: è un modello, i turni veri si creano all'avvio della manche; le parole restano segrete */
+        if (TRIAL.includes(q.type)) { questions[qid].template = true; secret[qid].words = q.words; if (q.draw) questions[qid].draw = true; }
+      });
+    });
+    up["quiz/rounds"] = rounds;
+    up["quiz/questions"] = questions;
+    up["quizSecret"] = secret;
+    await DB.ref().update(up);
+    setUpMsg(`<p style="color:var(--ok)"><strong>Caricate ${nq} domande in ${P.rounds.length} manche.</strong></p>${list(P.warnings, "msg-warn")}`);
+  } catch(e) {
+    setUpMsg(`<p class="msg-err">Errore: ${h(e.message)}</p>`);
+  }
+}
+
+function hostTeams(){
+  const list = teams().map(t => `
+    <div class="row"><div><strong>${h(t.name)}</strong> <span class="tag ${t.confirmed?'good':''}">${t.confirmed?"confermata":"in attesa"}</span>
+    <div class="muted">${h(t.members||"")}</div></div>
+    <div><button class="btn ${t.confirmed?'ghost':'ok'}" onclick="toggleTeam('${t.id}')">${t.confirmed?"Togli conferma":"Conferma"}</button>
+    <button class="btn danger" onclick="delTeam('${t.id}')">✕</button></div></div>`).join("") || `<p class="muted">Nessuna squadra iscritta. Max 10 concorrenti consigliati.</p>`;
+  return `<div class="card">${list}</div>`;
+}
+function toggleTeam(id){
+  const t = ST.teams?.[id];
+  if (!t) return;
+  if (t.confirmed && !confirm(`Togliere la conferma a "${t.name}"? La squadra non vedrà più le domande.`)) return;
+  DB.ref("quiz/teams/" + id + "/confirmed").set(!t.confirmed);
+}
+function delTeam(id){
+  const t = ST.teams?.[id];
+  if (!t || !confirm(`Eliminare la squadra "${t.name}"? Perde anche i punti fatti finora.`)) return;
+  const up = { ["quiz/teams/" + id]: null, ["quiz/answers/" + id]: null };
+  qs().forEach(q => { if (q.awarded?.[id] != null) up[`quiz/questions/${q.id}/awarded/${id}`] = null; });
+  DB.ref().update(up);
+}
+
+function settingsCard(){
+  return `<div class="card">
+    <strong>Impostazioni quiz</strong>
+    <input id="sName" placeholder="Nome del quiz" value="${h(ST.settings?.name || "")}">
+    <button class="btn" onclick="saveName()">Salva nome</button>
+    <label class="muted" style="display:block;margin-top:10px">Punteggio (nel Word: riga PUNTEGGIO)</label>
+    <select onchange="DB.ref('quiz/settings/score').set(this.value)">${Object.entries(SCORE_NAMES).map(([k,v]) => `<option value="${k}" ${k === scoreMode() ? "selected" : ""}>${v}</option>`).join("")}</select>
+    <label class="muted" style="display:block;margin-top:10px">Classifica sul proiettore (nel Word: riga CLASSIFICA)</label>
+    <select onchange="DB.ref('quiz/settings/board').set(this.value)">${Object.entries(BOARD_NAMES).map(([k,v]) => `<option value="${k}" ${k === boardSetting() ? "selected" : ""}>${v}</option>`).join("")}</select>
+    <label class="muted" style="display:block;margin-top:10px">Sfondo delle pagine di presentatore e concorrenti (JPG o PNG)</label>
+    <button class="btn ghost" onclick="document.getElementById('pickBg').click()">Scegli immagine…</button>
+    <button class="btn ghost" onclick="removeBg()">Rimuovi sfondo</button>
+  </div>`;
+}
+function saveName(){
+  const v = document.getElementById("sName").value.trim();
+  DB.ref("quiz/settings/name").set(v || "Quiz Night");
+}
+function removeBg(){ DB.ref("quizBg").remove(); }
+function loadBg(input){
+  const f = input.files[0];
+  input.value = "";
+  if (!f) return;
+  shrink(f).then(d => DB.ref("quizBg").set(d))
+    .then(() => alert("Sfondo salvato"))
+    .catch(e => alert("Errore: " + e.message));
+}
+
+/* ---------- regia: una sequenza fissa, un solo pulsante principale ----------
+   copertina → iscrizione → intro (apertura manche) → domanda → risposte → soluzione → … →
+   parziale (classifica di fine manche) → intro della manche dopo → … → classifica → fine */
+const setConfig = obj => DB.ref("quiz/config").update(obj).catch(e => alert("Errore Firebase: " + e.message));
+const posInRound = q => qs().filter(x => x.round === q.round).findIndex(x => x.id === q.id) + 1;
+const norm = s => String(s ?? "").toLowerCase().normalize("NFD").replace(/[̀-ͯ]/g, "").replace(/[^a-z0-9]+/g, " ").trim();
+/* risposta giusta: per le scelte confronta l'opzione, per le risposte scritte il testo (senza maiuscole, accenti e punteggiatura) */
+function isRight(q, value){
+  const sec = SECRET[q.id] || {};
+  if (value == null) return false;
+  if (q.type === "scelta") return sec.correct >= 0 && value === qOpts(q)[sec.correct];
+  if (q.type === "testo") return !!norm(sec.answer) && norm(value) === norm(sec.answer);
+  return false;
+}
+const playing = () => !["copertina", "iscrizione", "attesa"].includes(cfg().phase) || qs().some(q => Object.keys(q.awarded || {}).length);
+
+function nextStep(){
+  const c = cfg(), l = qs(), n = l.length;
+  const i = Math.min(Math.max(c.idx || 0, 0), Math.max(n - 1, 0)), q = l[i];
+  const pending = teams().filter(t => !t.confirmed);
+  /* niente si avvia finché ci sono squadre da sistemare */
+  const gate = !n ? "Carica prima le domande dalla scheda Domande."
+    : pending.length ? "Prima conferma o elimina le squadre in attesa (riquadro qui sopra)."
+    : !teams().length ? "Aspetta che almeno una squadra si iscriva." : "";
+  const nextRound = i + 1 < n && l[i + 1].round !== q.round;
+  switch (c.phase) {
+    case "copertina":
+      return { text: "Sul proiettore c'è la copertina e le iscrizioni sono chiuse. Quando sei pronto aprile: comparirà il QR.",
+        label: "Apri le iscrizioni", why: n ? "" : "Carica prima le domande dalla scheda Domande.", run: () => setConfig({ phase: "iscrizione" }) };
+    case "iscrizione":
+    case "attesa":
+      return { text: c.phase === "iscrizione" ? "Iscrizioni aperte: le squadre si registrano inquadrando il QR sul proiettore. Conferma ogni squadra quando arriva." : "Partita in pausa.",
+        label: c.phase === "iscrizione" ? `Chiudi le iscrizioni e apri "${roundOf(q).title || "la prima manche"}"` : `Riprendi: apri "${roundOf(q).title || "la manche"}"`,
+        why: gate, run: () => setConfig({ phase: "intro", idx: i }) };
+    case "intro":
+      if (q.template) return { text: `Sul proiettore c'è l'apertura della manche "${roundOf(q).title}". Presentala: c'è una prova per ogni squadra, in ordine estratto a caso, con parole a caso.`,
+        label: "▶ Estrai i turni e avvia la prima prova", why: gate, run: () => goQ(i) };
+      return { text: `Sul proiettore c'è l'apertura della manche "${roundOf(q).title}". Presentala, poi avvia la domanda.`,
+        label: `▶ Avvia la domanda ${posInRound(q)}`, why: gate, run: () => goQ(i) };
+    case "domanda":
+      if (q.type === "prova") return { text: `Tocca a <strong>${h(teamName(q.team))}</strong>: ${q.draw ? "dai al loro concorrente il tablet della lavagna (la parola la legge lì, in alto) e via al tempo: il disegno compare sul proiettore." : "di' all'orecchio del loro concorrente la parola qui sotto, poi via al tempo."} Le <strong>altre</strong> squadre si prenotano: se chi è primo indovina dagli i punti, se sbaglia riapri le prenotazioni.`, label: "Mostra la soluzione", run: showSol };
+      if (q.type === "intesa") {
+        const s = intesaState(q);
+        if (!s.queue.length) return { text: `<span class="all-in">✅ ${h(teamName(q.team))} ha indovinato tutte le parole!</span>`, label: "Mostra il risultato", hot: true, run: showSol };
+        return { text: `Intesa vincente per <strong>${h(teamName(q.team))}</strong>: chi dà gli indizi guarda la parola qui sotto (solo lui!) e la fa indovinare ai compagni. Premi <strong>Indovinata</strong> o <strong>Passo</strong>; le passate tornano in fondo.`, label: "Chiudi il turno e mostra il risultato", run: showSol };
+      }
+      if (q.type === "indizi") return { text: "Svela gli indizi uno alla volta. Quando una squadra prenotata indovina, assegnale i punti qui sotto, poi mostra la soluzione.", label: "Mostra la soluzione", run: showSol };
+      if (q.type === "prenota") return { text: "Le squadre si prenotano. Ascolta chi ha premuto per primo: se indovina assegnagli i punti, se sbaglia riapri le prenotazioni.", label: "Mostra la soluzione", run: showSol };
+      {
+        const conf = teams().filter(t => t.confirmed), done = conf.filter(t => ST.answers?.[t.id]?.[q.id]).length;
+        /* tutte le squadre hanno risposto: inutile aspettare il timer */
+        if (conf.length && done === conf.length)
+          return { text: `<span class="all-in">✅ Tutte le squadre hanno risposto (${done}/${conf.length}): puoi chiudere le risposte.</span>`, label: "Chiudi le risposte", hot: true, run: () => setConfig({ phase: "risposte" }) };
+        return { text: `${done === 1 ? "Ha" : "Hanno"} risposto <strong>${done} ${done === 1 ? "squadra" : "squadre"} su ${conf.length}</strong>. ` + (qSecs(q) ? "Il tempo chiude da solo; puoi anche chiudere prima." : "Questa domanda non ha timer: chiudi tu quando sono pronte."),
+          label: "Chiudi le risposte", run: () => setConfig({ phase: "risposte" }) };
+      }
+    case "risposte":
+      if (q.type === "intesa") return { text: `Tempo scaduto! ${h(teamName(q.team))} ha indovinato ${intesaState(q).ok.length} parole: mostrando il risultato prende i punti da sola.`, label: "Mostra il risultato", run: showSol };
+      if (q.type === "prova") return { text: "Tempo scaduto. Se qualcuno ha indovinato dagli i punti qui sotto, poi mostra la soluzione.", label: "Mostra la soluzione", run: showSol };
+      return { text: q.type === "testo"
+          ? "Risposte chiuse. Le risposte identiche alla soluzione prendono i punti da sole quando la mostri; quelle giuste ma scritte diversamente premiale tu qui sotto."
+          : "Risposte chiuse. Quando mostri la soluzione le squadre che hanno indovinato prendono i punti da sole.",
+        label: "Mostra la soluzione", run: showSol };
+    case "soluzione":
+      if (i >= n - 1) return { text: "Ultima soluzione sul proiettore. Controlla i punti: poi c'è la classifica finale.", label: "🏆 Classifica finale", run: () => setConfig({ phase: "classifica" }) };
+      if (nextRound && showPartial(q)) return { text: "Soluzione sul proiettore. Questa era l'ultima domanda della manche.", label: boardSetting() === "meta" ? "Classifica di metà gara" : "Classifica di fine manche", run: () => setConfig({ phase: "parziale" }) };
+      if (nextRound) return { text: "Soluzione sul proiettore. Questa era l'ultima domanda della manche (classifica nascosta fino a metà gara o alla fine).", label: `Apri la manche "${roundOf(l[i + 1]).title}"`, why: gate, run: () => setConfig({ phase: "intro", idx: i + 1 }) };
+      return { text: "Soluzione sul proiettore. Controlla i punti, poi vai avanti.", label: `Domanda successiva (${posInRound(l[i + 1])} di ${qs().filter(x => x.round === q.round).length}) →`, why: gate, run: () => goQ(i + 1) };
+    case "parziale":
+      return { text: `Classifica di fine manche sul proiettore.`, label: `Apri la manche "${roundOf(l[i + 1]).title}"`, why: gate, run: () => setConfig({ phase: "intro", idx: i + 1 }) };
+    case "classifica":
+      return { text: "Classifica finale sul proiettore. Proclama i vincitori!", label: "Chiudi la serata", run: () => setConfig({ phase: "fine" }) };
+    default:
+      return { text: "Serata conclusa. 🎉 Per giocare di nuovo vai nella scheda Domande, riquadro \"Ripartire da capo\".", label: "" };
+  }
+}
+/* la pagina si ridisegna subito dopo un clic: senza questa pausa il secondo clic di un doppio clic
+   cadrebbe sul pulsante nuovo nello stesso punto e farebbe saltare un passo */
+const lastClick = {};
+const tooFast = (key, ms = 1000) => { const t = Date.now(), last = lastClick[key] || 0; lastClick[key] = t; return t - last < ms; };
+/* il pulsante passa anche fase e domanda che vedeva: se nel frattempo sono cambiate non fa nulla */
+function doNext(phase, idx){
+  const c = cfg();
+  if (tooFast("next") || c.phase !== phase || (c.idx || 0) !== idx) return;
+  const s = nextStep();
+  if (s.why || !s.run) return;
+  document.querySelectorAll(".next-btn").forEach(b => b.disabled = true);
+  s.run();
+}
+
+function hostGame(){
+  const c = cfg(), l = qs(), n = l.length, q = curQ(), ph = c.phase;
+  const sec = q ? SECRET[q.id] || {} : {};
+  const rv = reveal(q);
+  const cl = c.clues || 1;
+  const s = nextStep();
+
+  /* le squadre non confermate non vedono le domande e bloccano la partita: si sistemano qui */
+  const pending = teams().filter(t => !t.confirmed);
+  const waiting = pending.length ? `
+    <div class="card" style="border-color:var(--warn)">
+      <strong class="msg-warn">⚠ ${pending.length === 1 ? "1 squadra aspetta" : pending.length + " squadre aspettano"} la conferma</strong>
+      <p class="muted" style="margin:4px 0">Finché non le confermi (o le elimini) non vedono le domande e la partita non va avanti.</p>
+      ${pending.map(t => `<div class="row"><span><strong>${h(t.name)}</strong>${t.members ? `<br><span class="muted">${h(t.members)}</span>` : ""}</span>
+        <span><button class="btn ok" onclick="toggleTeam('${t.id}')">Conferma</button><button class="btn danger" onclick="delTeam('${t.id}')">✕</button></span></div>`).join("")}
+    </div>` : "";
+
+  const where = q && !["copertina", "iscrizione", "attesa", "classifica", "fine"].includes(ph)
+    ? `<div class="step">Manche ${Object.values(ST.rounds || {}).filter(r => r.order <= roundOf(q).order).length}/${Object.keys(ST.rounds || {}).length} · ${h(roundOf(q).title)} · domanda ${posInRound(q)}/${l.filter(x => x.round === q.round).length}</div>` : "";
+  const timer = ph === "domanda" && q && qSecs(q) ? ` <span class="tag">⏱ <span class="tick"></span></span>` : "";
+  /* azioni che servono solo in questa fase della domanda */
+  /* prima delle iscrizioni si provano le casse: il suono esce dal proiettore */
+  const soundTools = `<span class="muted">Prova il volume delle casse del proiettore:</span>
+    <button class="btn ghost" onclick="testSound('tromba')">🎺 Prova tromba</button>
+    <button class="btn ghost" onclick="testSound('gong')">🔔 Prova gong</button>
+    <p class="muted" style="margin:4px 0 0">Se non senti niente, sul proiettore clicca il pulsante giallo "Clicca qui per attivare il suono".</p>`;
+  const tools = ph === "copertina" ? soundTools : q && ph === "domanda" ? [
+    q.type === "prova" ? `<div class="secret-word">🤫 Parola per ${h(teamName(q.team))}: <strong>${h(sec.answer)}</strong></div>` : "",
+    q.type === "intesa" ? intesaTools(q) : "",
+    q.type === "indizi" ? `<button class="btn" onclick="nextClue()" ${cl >= clueCount(q) ? "disabled" : ""}>Svela indizio ${Math.min(cl + 1, clueCount(q))} di ${clueCount(q)}</button>` : "",
+    isBuzz(q) ? buzzRow(q) : "",
+    q.hasHint ? `<button class="btn ghost" onclick="showHint()" ${rv.hint ? "disabled" : ""}>${rv.hint ? "Aiuto mostrato" : "Mostra aiuto"}</button>` : ""
+  ].join("") : "";
+  const regia = `
+    <div class="card regia">
+      ${where}
+      <p style="margin:6px 0 10px">${s.text}${timer}</p>
+      ${tools ? `<div style="margin-bottom:8px">${tools}</div>` : ""}
+      ${s.label ? `<button class="btn next-btn ${s.hot ? "hot" : ""}" onclick="doNext('${ph}', ${c.idx || 0})" ${s.why ? "disabled" : ""}>${h(s.label)}</button>` : ""}
+      ${s.why ? `<p class="msg-warn" style="margin:6px 0 0"><strong>${s.why}</strong></p>` : ""}
+    </div>`;
+
+  if (!n) return waiting + regia;
+
+  const showQ = !["copertina", "iscrizione", "attesa", "classifica", "fine"].includes(ph);
+  let body = "";
+  if (ph === "copertina" || ph === "iscrizione" || ph === "attesa") {
+    body = `<div class="card"><strong>Squadre iscritte</strong>${teams().map(t => `<div class="row"><span>${h(t.name)}</span><span class="tag ${t.confirmed ? "good" : ""}">${t.confirmed ? "confermata" : "in attesa"}</span></div>`).join("") || `<p class="muted">Ancora nessuna. Il QR è sul proiettore e nella scheda QR.</p>`}</div>`;
+  }
+  if (showQ) {
+    /* nell'intesa i punti vanno solo alla squadra di turno */
+    const list = q.type === "intesa" ? teams().filter(t => t.id === q.team)
+      : isBuzz(q) ? buzzes(q).concat(teams().filter(t => t.confirmed && !ST.answers?.[t.id]?.[q.id])) : teams().filter(t => t.confirmed);
+    const from = c.clueAt || c.start;
+    const canAward = ["domanda", "risposte", "soluzione"].includes(ph);
+    const answers = list.map((t,i) => {
+      const a = ST.answers?.[t.id]?.[q.id];
+      const on = q.awarded?.[t.id];
+      const info = isBuzz(q) && a ? `${i+1}° · ${((a.t - (from || a.t)) / 1000).toFixed(2)} s` : "";
+      return `<div class="row"><div><strong>${h(t.name)}</strong>${info ? ` <span class="tag">${info}</span>` : ""}${a && isRight(q, a.value) ? ` <span class="tag good">esatta</span>` : ""}<br><span class="muted">${a ? h(a.value) : "— nessuna risposta"}</span></div>
+        ${canAward ? `<button class="btn ${on?'ok':'ghost'}" onclick="award('${t.id}')">${on ? '✓ ' + awardVal(q, on) + ' pt' : '+ ' + ptsNow(q)}</button>` : ""}</div>`;
+    }).join("") || `<p class="muted">Nessuna squadra confermata.</p>`;
+    const anyRight = list.some(t => isRight(q, ST.answers?.[t.id]?.[q.id]?.value) && !q.awarded?.[t.id]);
+    const opts = qOpts(q).map((o,i) => `<div class="${i === sec.correct ? "" : "muted"}">${i === sec.correct ? "✅ " : ""}${LETTERS[i]}) ${h(o)}</div>`).join("");
+    const clues = imgClues(q)
+      ? `<div class="thumbs">${qImgs(q).map((id,i) => `<span class="clue-thumb ${i < cl || ph === "soluzione" ? "" : "hidden"}"><b>${i < cl ? "👁 " : ""}${i+1}</b>${img(id)}</span>`).join("")}</div>`
+      : qClues(q).map((x,i) => `<div class="${i < cl || ph === "soluzione" ? "" : "muted"}">${i < cl ? "👁 " : ""}${i+1}. ${h(x)}</div>`).join("");
+    body = `
+    <div class="card">
+      <span class="tag">${TYPE_NAMES[q.type] || q.type} · ${q.type === "indizi" ? `vale ${ptsNow(q)} pt ora` : q.points + " pt"}</span>
+      ${q.cat ? `<div class="muted" style="margin-top:6px">${h(q.cat)}</div>` : ""}
+      <div class="big">${h(q.text)}</div>
+      ${qImgs(q).length && !imgClues(q) ? `<div class="thumbs">${qImgs(q).map(id => img(id)).join("")}</div>` : ""}
+      ${opts}${clues}
+      ${q.team ? `<p>Tocca a: <strong>${h(teamName(q.team))}</strong></p>` : ""}
+      ${q.template ? `<p class="muted">Una prova per squadra, con parole estratte da: ${h(arr(sec.words).join(", "))}</p>`
+        /* nell'intesa chi dà gli indizi guarda questo schermo: le parole si vedono tutte solo a turno finito */
+        : q.type === "intesa" && ph === "domanda" ? ""
+        : `<p>${q.type === "intesa" ? "Parole" : "Risposta"}: <strong class="${/da compilare/i.test(sec.answer || "") ? "msg-err" : ""}">${h(sec.answer)}</strong></p>`}
+      ${sec.hint ? `<p class="muted">Aiuto: ${h(sec.hint)}</p>` : ""}
+      ${sec.notes ? `<p class="muted">Note: ${h(sec.notes)}</p>` : ""}
+    </div>
+    ${ph === "intro" ? "" : `<div class="card"><strong>Risposte e punti</strong>
+      ${canAward && anyRight ? `<button class="btn ok" style="float:right" onclick="awardRight()">Punti a tutte le esatte</button>` : ""}
+      ${answers}</div>`}`;
+  }
+  /* a posizioni il presentatore vede anche la classifica della manche (punti fatti e, a manche finita, i punti guadagnati) */
+  const roundCard = scoreMode() === "posizioni" && q && !["copertina", "iscrizione"].includes(ph)
+    ? `<div class="card"><strong>Manche: ${h(roundOf(q).title)}</strong> <span class="muted">${roundDone(q.round) ? "finita: tra parentesi i punti in classifica" : "in corso"}</span>${board("", q.round)}</div>` : "";
+  return waiting + regia + body + roundCard + `<div class="card"><strong>Classifica${scoreMode() === "posizioni" ? " generale" : ""}</strong>${board()}</div>` + fixCard();
+}
+
+/* ---------- correzioni: fuori dal flusso normale, sempre con conferma ---------- */
+function fixCard(){
+  const c = cfg(), l = qs(), i = c.idx || 0;
+  return `<details class="card fix"><summary><strong>Correzioni</strong> <span class="muted">— solo se qualcosa è andato storto</span></summary>
+    <div style="margin-top:8px">
+      <button class="btn ghost" onclick="fixBack()" ${i <= 0 || ["copertina", "iscrizione"].includes(c.phase) ? "disabled" : ""}>← Torna alla domanda precedente</button>
+      <button class="btn ghost" onclick="fixRepeat()" ${["domanda","risposte","soluzione"].includes(c.phase) ? "" : "disabled"}>↻ Ripeti questa domanda</button>
+      <button class="btn ghost" onclick="fixReopen()" ${["copertina", "iscrizione"].includes(c.phase) ? "disabled" : ""}>Riapri le iscrizioni</button>
+    </div>
+    <div class="row" style="margin-top:6px"><select id="fixTo">${l.map((x,j) => `<option value="${j}" ${j === i ? "selected" : ""}>${j+1}. ${h(roundOf(x).title)} – ${h((x.cat ? x.cat + ": " : "") + x.text).slice(0,50)}</option>`).join("")}</select>
+      <button class="btn ghost" onclick="fixJump()">Vai</button></div>
+    <p class="muted" style="margin:8px 0 0">Per ricominciare da zero c'è "Ripartire da capo" nella scheda Domande.</p>
+  </details>`;
+}
+function fixBack(){
+  const i = (cfg().idx || 0) - 1;
+  if (i < 0 || !confirm("Tornare alla domanda precedente? Potrai correggere i punti e rimostrare la soluzione.")) return;
+  setConfig({ phase: "risposte", idx: i });
+}
+function fixRepeat(){
+  const q = curQ();
+  if (!q || !confirm("Ripetere questa domanda da capo? Risposte e punti di questa domanda vengono cancellati.")) return;
+  const up = { [`quiz/questions/${q.id}/awarded`]: null };
+  teams().forEach(t => up[`quiz/answers/${t.id}/${q.id}`] = null);
+  DB.ref().update(up).then(() => goQ(cfg().idx || 0));
+}
+function fixReopen(){
+  if (!confirm("Riaprire le iscrizioni? La partita resta in pausa con i punti attuali; poi riprendi dal pulsante principale.")) return;
+  setConfig({ phase: "iscrizione" });
+}
+function fixJump(){
+  const j = Number(document.getElementById("fixTo").value), q = qs()[j];
+  if (!q || !confirm(`Saltare alla domanda ${j+1} ("${q.text.slice(0,40)}")? Si riparte dall'apertura della sua manche.`)) return;
+  setConfig({ phase: "intro", idx: j });
+}
+/* ---------- ripartire da capo (scheda Domande) ---------- */
+function resetCard(){
+  const nt = teams().length;
+  return `<div class="card">
+    <strong>Ripartire da capo</strong>
+    <p class="muted">Le domande caricate restano. Si torna alla copertina, con le iscrizioni chiuse.</p>
+    <button class="btn ghost" onclick="resetGame(false)">↻ Nuova partita con le stesse squadre</button>
+    <button class="btn danger" onclick="resetGame(true)" ${nt ? "" : "disabled"}>🗑 Azzera tutto, squadre comprese</button>
+    <p class="muted" style="margin:6px 0 0">"Nuova partita" cancella punti e risposte. "Azzera tutto" cancella anche le ${nt} squadre iscritte: i concorrenti dovranno iscriversi di nuovo.</p>
+  </div>`;
+}
+function resetGame(withTeams){
+  if (withTeams) {
+    const typed = prompt(`Stai per cancellare punti, risposte e TUTTE le ${teams().length} squadre.\nPer confermare scrivi AZZERA:`);
+    if (typed === null) return;
+    if (typed.trim().toUpperCase() !== "AZZERA") return alert("Non hai scritto AZZERA: non ho cancellato niente.");
+  } else if (!confirm("Nuova partita: tutti i punti e tutte le risposte vengono cancellati. Domande e squadre restano. Continuare?")) return;
+  const up = { "quiz/answers": null, "quiz/reveal": null, "quiz/intesa": null, "quizDraw": null, "quiz/config": { phase: "copertina", idx: 0 } };
+  qs().forEach(q => { if (!q.turnOf) up[`quiz/questions/${q.id}/awarded`] = null; });
+  /* le prove tornano modelli: i turni si rifanno alla prossima partita, con le squadre di allora */
+  Object.entries(ST.questions || {}).forEach(([id, q]) => {
+    if (q.turnOf) { up[`quiz/questions/${id}`] = null; up[`quizSecret/${id}`] = null; }
+    else if (q.expanded) up[`quiz/questions/${id}/expanded`] = null;
+  });
+  if (withTeams) up["quiz/teams"] = null;
+  DB.ref().update(up).then(() => { tab = "Gioco"; render(); });
+}
+
+/* avvia una domanda da zero: niente risposte o soluzioni rimaste da prima */
+async function goQ(i){
+  let l = qs(); if (!l.length) return;
+  i = Math.min(Math.max(i, 0), l.length - 1);
+  /* una prova si trasforma nei turni delle squadre appena si avvia, così vale per chi c'è in quel momento */
+  if (l[i].template) {
+    if (!await expandTrials(l[i])) return;
+    for (let k = 0; k < 40 && qs()[i]?.template; k++) await new Promise(r => setTimeout(r, 50));
+    l = qs();
+    if (l[i]?.template) return;
+  }
+  const up = { "quiz/config": {phase: "domanda", idx: i, start: TS, clueAt: TS, clues: 1, secs: qSecs(l[i])} };
+  up["quiz/reveal/" + l[i].id] = null;
+  up["quiz/intesa/" + l[i].id] = null;
+  up["quizDraw/" + l[i].id] = null;
+  teams().forEach(t => up[`quiz/answers/${t.id}/${l[i].id}`] = null);
+  return DB.ref().update(up);
+}
+const shuffle = a => { a = [...a]; for (let i = a.length - 1; i > 0; i--) { const j = Math.floor(Math.random() * (i + 1)); [a[i], a[j]] = [a[j], a[i]]; } return a; };
+/* prove pratiche: un turno per squadra confermata, in ordine casuale, con parole estratte a caso e mai ripetute.
+   Nell'intesa ogni squadra riceve la stessa quantità di parole */
+async function expandTrials(q){
+  const words = shuffle(arr((SECRET[q.id] || {}).words)), tl = shuffle(teams().filter(t => t.confirmed));
+  if (!tl.length) return false;
+  const per = q.type === "intesa" ? Math.max(1, Math.floor(words.length / tl.length)) : 1;
+  const turns = Math.min(tl.length, Math.floor(words.length / per));
+  if (turns < tl.length && !confirm(`Nel Word ci sono solo ${words.length} parole per ${tl.length} squadre: ${tl.length - turns} squadre resteranno senza prova. Continuare?`)) return false;
+  const up = { [`quiz/questions/${q.id}/expanded`]: true };
+  tl.slice(0, turns).forEach((t, k) => {
+    const id = q.id + "t" + k, w = words.slice(k * per, (k + 1) * per);
+    up[`quiz/questions/${id}`] = { order: q.order + (k + 1) / 1000, round: q.round, type: q.type, text: q.text, cat: q.cat || "",
+      points: q.points, secs: q.secs, team: t.id, turnOf: q.id, nwords: w.length, ...(q.draw ? { draw: true } : {}) };
+    up[`quizSecret/${id}`] = { answer: w.join(", "), words: w };
+  });
+  await DB.ref().update(up);
+  return true;
+}
+function award(tid){
+  const q = curQ();
+  const on = q.awarded?.[tid];
+  DB.ref("quiz/questions/" + q.id + "/awarded/" + tid).set(on ? null : ptsNow(q));
+}
+function awardRight(){
+  const q = curQ(), up = {};
+  teams().filter(t => t.confirmed && isRight(q, ST.answers?.[t.id]?.[q.id]?.value))
+    .forEach(t => up[`quiz/questions/${q.id}/awarded/${t.id}`] = ptsNow(q));
+  if (Object.keys(up).length) DB.ref().update(up);
+}
+function clearBuzz(){
+  const q = curQ(), up = {};
+  teams().forEach(t => up[`quiz/answers/${t.id}/${q.id}`] = null);
+  up["quiz/config/clueAt"] = TS;
+  return DB.ref().update(up);
+}
+/* nuovo indizio: le prenotazioni si azzerano e il valore della domanda scende */
+function nextClue(){
+  const q = curQ(), c = cfg();
+  if (tooFast("clue") || c.phase !== "domanda" || (c.clues || 1) >= clueCount(q)) return;
+  const up = { "quiz/config/clues": (c.clues || 1) + 1, "quiz/config/clueAt": TS };
+  teams().forEach(t => up[`quiz/answers/${t.id}/${q.id}`] = null);
+  DB.ref().update(up);
+}
+function showHint(){ const q = curQ(); DB.ref(`quiz/reveal/${q.id}/hint`).set((SECRET[q.id] || {}).hint || ""); }
+function showSol(){
+  const q = curQ(), sec = SECRET[q.id] || {};
+  const up = {};
+  up[`quiz/reveal/${q.id}/answer`] = sec.answer || "";
+  up[`quiz/reveal/${q.id}/correct`] = sec.correct ?? -1;
+  up[`quiz/reveal/${q.id}/notes`] = sec.notes || "";
+  up["quiz/config/phase"] = "soluzione";
+  /* le risposte esatte prendono i punti da sole; il presentatore può sempre toglierli o darne altri */
+  teams().filter(t => t.confirmed && !q.awarded?.[t.id] && isRight(q, ST.answers?.[t.id]?.[q.id]?.value))
+    .forEach(t => up[`quiz/questions/${q.id}/awarded/${t.id}`] = ptsNow(q));
+  /* intesa: sul proiettore tutte le parole, segnate se indovinate, e i punti alla squadra di turno */
+  if (q.type === "intesa") {
+    up[`quiz/reveal/${q.id}/words`] = arr(sec.words);
+    if (q.team && ptsNow(q) && !q.awarded?.[q.team]) up[`quiz/questions/${q.id}/awarded/${q.team}`] = ptsNow(q);
+  }
+  DB.ref().update(up);
+}
+
+/* ---------- LAVAGNA: il tablet su cui si disegna nelle prove di disegno ---------- */
+/* i tratti stanno in quizDraw/<domanda>/<tratto> = { c: colore, w: spessore, p: "x,y x,y …" } su un foglio 4:3 di 1000×750:
+   un nodo a parte, così mentre si disegna non si ridisegnano le pagine di telefoni e presentatore */
+const DRAW_W = 1000, DRAW_H = 750;
+const DRAW_COLORS = ["#111111", "#e63b2e", "#2a74d6", "#1e8e4e", "#f6c324", "#8e44ad"];
+let DRAW = {};
+const isDrawTurn = q => !!(q && q.draw && q.team);
+/* i nomi dei tratti iniziano con l'ora in base 36: in ordine alfabetico sono anche in ordine di tempo */
+const strokesOf = (qid, extra) => Object.entries({ ...(DRAW[qid] || {}), ...(extra || {}) }).sort(([a], [b]) => a < b ? -1 : 1).map(([, s]) => s);
+function paint(canvas, strokes){
+  if (!canvas) return;
+  const box = canvas.parentElement.getBoundingClientRect();
+  const scale = Math.min(box.width / DRAW_W, box.height / DRAW_H), dpr = window.devicePixelRatio || 1;
+  const W = Math.max(1, Math.round(DRAW_W * scale)), H = Math.max(1, Math.round(DRAW_H * scale));
+  if (canvas.width !== W * dpr) { canvas.width = W * dpr; canvas.height = H * dpr; canvas.style.width = W + "px"; canvas.style.height = H + "px"; }
+  const g = canvas.getContext("2d");
+  g.setTransform(dpr * scale, 0, 0, dpr * scale, 0, 0);
+  g.fillStyle = "#fff"; g.fillRect(0, 0, DRAW_W, DRAW_H);
+  g.lineCap = g.lineJoin = "round";
+  strokes.forEach(st => {
+    const pts = String(st.p || "").split(" ").filter(Boolean).map(t => t.split(",").map(Number));
+    if (!pts.length) return;
+    g.strokeStyle = st.c || "#111"; g.lineWidth = st.w || 6;
+    g.beginPath(); g.moveTo(pts[0][0], pts[0][1]);
+    pts.forEach(([x, y]) => g.lineTo(x, y));
+    if (pts.length === 1) g.lineTo(pts[0][0] + .1, pts[0][1]);
+    g.stroke();
+  });
+}
+const drawProj = () => paint(document.getElementById("pjCanvas"), strokesOf(curQ()?.id));
+
+let pen = { stroke: null, key: "", qid: "", last: 0, lastPt: null, color: DRAW_COLORS[0], erase: false };
+const boardActive = () => isDrawTurn(curQ()) && cfg().phase === "domanda";
+const boardPaint = () => paint(document.getElementById("bCanvas"), strokesOf(curQ()?.id, pen.stroke ? { [pen.key]: pen.stroke } : null));
+/* la pagina si costruisce una volta sola: ridisegnarla a ogni aggiornamento interromperebbe il tratto in corso */
+function viewBoard(){
+  const app = document.getElementById("app");
+  if (!document.getElementById("bCanvas")) {
+    app.innerHTML = `<div class="board"><div class="board-bar"><span id="bInfo"></span><span class="board-word" id="bWord"></span></div>
+      <div class="board-tools">${DRAW_COLORS.map(col => `<button class="board-col" style="background:${col}" data-c="${col}" onclick="boardTool('${col}')" aria-label="colore"></button>`).join("")}
+        <button class="btn ghost" data-c="erase" onclick="boardTool('erase')">Gomma</button>
+        <button class="btn danger" onclick="boardClear()">Cancella tutto</button></div>
+      <div class="board-area"><canvas id="bCanvas"></canvas></div></div>`;
+    setupBoard(document.getElementById("bCanvas"));
+  }
+  const q = curQ(), on = boardActive();
+  document.getElementById("bInfo").innerHTML = on
+    ? `Tocca a <strong>${h(teamName(q.team))}</strong>: disegna! <span class="tag">⏱ <span class="tick"></span></span>`
+    : isDrawTurn(q) ? "Tempo finito: aspetta il prossimo turno." : "La lavagna si attiva durante le prove di disegno.";
+  /* la parola, piccola in un angolo: la legge chi disegna */
+  document.getElementById("bWord").textContent = on ? "Parola: " + ((SECRET[q.id] || {}).answer || "") : "";
+  document.querySelector(".board").classList.toggle("off", !on);
+  document.querySelectorAll(".board-tools [data-c]").forEach(b => b.classList.toggle("sel", pen.erase ? b.dataset.c === "erase" : b.dataset.c === pen.color));
+  if (!on) pen.stroke = null;
+  boardPaint();
+}
+function boardTool(c){
+  pen.erase = c === "erase";
+  if (!pen.erase) pen.color = c;
+  viewBoard();
+}
+function boardClear(){
+  const q = curQ();
+  if (q && confirm("Cancellare tutto il disegno?")) DB.ref("quizDraw/" + q.id).remove();
+}
+function setupBoard(cv){
+  const pos = e => { const r = cv.getBoundingClientRect(); return [Math.round((e.clientX - r.left) / r.width * DRAW_W), Math.round((e.clientY - r.top) / r.height * DRAW_H)]; };
+  cv.addEventListener("pointerdown", e => {
+    if (!boardActive()) return;
+    e.preventDefault();
+    cv.setPointerCapture(e.pointerId);
+    pen.qid = curQ().id;
+    pen.key = Date.now().toString(36) + Math.random().toString(36).slice(2, 5);
+    pen.lastPt = pos(e);
+    pen.stroke = { c: pen.erase ? "#ffffff" : pen.color, w: pen.erase ? 40 : 7, p: pen.lastPt.join(",") };
+    boardPaint(); boardSend(true);
+  });
+  cv.addEventListener("pointermove", e => {
+    if (!pen.stroke) return;
+    (e.getCoalescedEvents ? e.getCoalescedEvents() : [e]).forEach(ev => {
+      const pt = pos(ev);
+      /* punti troppo vicini non servono e appesantiscono il tratto */
+      if (Math.abs(pt[0] - pen.lastPt[0]) + Math.abs(pt[1] - pen.lastPt[1]) < 3) return;
+      pen.lastPt = pt;
+      pen.stroke.p += " " + pt.join(",");
+    });
+    boardPaint(); boardSend(false);
+  });
+  const end = () => { if (!pen.stroke) return; boardSend(true); pen.stroke = null; };
+  cv.addEventListener("pointerup", end);
+  cv.addEventListener("pointercancel", end);
+}
+/* il tratto in corso parte al massimo 10 volte al secondo; alla fine si manda sempre l'ultima versione */
+function boardSend(now){
+  const t = Date.now();
+  if (!pen.stroke || (!now && t - pen.last < 100)) return;
+  pen.last = t;
+  DB.ref(`quizDraw/${pen.qid}/${pen.key}`).set({ ...pen.stroke });
+}
+if (IS_PROJ || IS_BOARD) DB.ref("quizDraw").on("value", s => { DRAW = s.val() || {}; IS_BOARD ? boardPaint() : drawProj(); });
+if (IS_BOARD) addEventListener("resize", boardPaint);
+
+/* ---------- PROIETTORE ---------- */
+function viewProj(){
+  const c = cfg(), q = curQ(), ph = c.phase;
+  /* la classifica nell'angolo c'è solo con CLASSIFICA: sempre */
+  /* a posizioni, durante una manche, l'angolo mostra la classifica della manche in corso */
+  const lr = liveRound();
+  const corner = boardSetting() !== "sempre" ? "" : `<div class="pj-board comic-box"><h3>${lr ? h(roundOf(q).title) : "Classifica"}</h3>${(lr ? roundRanked(lr) : ranked()).map(t => `<div><span>${h(t.name)}</span><strong>${t.pts}</strong></div>`).join("") || "<div>Nessuna squadra</div>"}</div>`;
+  const fs = (soundOn() ? "" : `<button class="pj-snd" onclick="unlockSound()">🔇 Clicca qui per attivare il suono</button>`)
+    + (document.fullscreenElement ? "" : `<button class="pj-fs" onclick="document.documentElement.requestFullscreen()">schermo intero</button>`);
+  const full = (id, cap) => `<div class="pj-full">${img(id)}${cap ? `<div class="pj-cap">${h(cap)}</div>` : ""}</div>`;
+  /* prima delle iscrizioni: solo la copertina, niente QR né classifica */
+  if (ph === "copertina") return (ST.settings?.cover ? full(ST.settings.cover) : `<div class="pj"><div class="pj-center"><div class="pj-title comic-title">${h(quizName())}</div></div></div>`) + fs;
+  if (ph === "iscrizione") {
+    const names = teams().map(t => `<span>${h(t.name)}${t.confirmed ? " ✓" : ""}</span>`).join("");
+    return `<div class="pj"><div class="pj-center"><div class="pj-title comic-title">${h(quizName())}</div>
+      <div class="pj-tag">Inquadra il codice per iscrivere la tua squadra</div><div class="qr" data-qr="${h(link("p=1"))}" data-size="320"></div>
+      <div class="pj-teams">${names}</div></div></div>` + fs;
+  }
+  if (ph === "fine") return ST.settings?.end ? full(ST.settings.end) + fs : `<div class="pj"><div class="pj-center"><div class="pj-title comic-title">Grazie per aver giocato!</div></div></div>` + fs;
+  if (ph === "classifica") return `<div class="pj"><div class="pj-center"><div class="pj-pod">${podium("", "🏆 Classifica finale")}</div></div></div>` + fs;
+  if (ph === "parziale" && q) return `<div class="pj"><div class="pj-center">${scoreMode() === "posizioni"
+    ? `<div class="pj-pods"><div class="pj-pod">${podium("", "Manche: " + (roundOf(q).title || ""), q.round)}</div><div class="pj-pod">${podium("", "Classifica generale")}</div></div>`
+    : `<div class="pj-pod">${podium("", "Classifica dopo: " + (roundOf(q).title || ""))}</div>`}</div></div>` + fs;
+  if (!q || ph === "attesa") return (ST.settings?.cover ? full(ST.settings.cover) : `<div class="pj"><div class="pj-center"><div class="pj-title comic-title">${h(quizName())}</div></div></div>`) + corner + fs;
+  const r = roundOf(q);
+  if (ph === "intro") return (r.cover ? full(r.cover, r.title) : `<div class="pj"><div class="pj-center"><div class="pj-title comic-title">${h(r.title)}</div></div></div>`) + fs;
+
+  const rv = reveal(q);
+  const cl = c.clues || 1;
+  const inRound = qs().filter(x => x.round === q.round);
+  const pos = inRound.findIndex(x => x.id === q.id) + 1;
+  /* con gli indizi a immagini si vedono solo quelle già svelate (tutte con la soluzione) */
+  const shown = imgClues(q) ? qImgs(q).slice(0, rv.answer ? qImgs(q).length : cl) : qImgs(q);
+  const imgs = shown.length ? `<div class="pj-imgs ${shown.length === 1 ? "one" : ""}">${shown.map(id => img(id)).join("")}</div>` : "";
+  const opts = qOpts(q).length ? `<div class="pj-opts ${qOpts(q).some(o => o.length > 60) ? "long" : ""}">${qOpts(q).map((o,i) =>
+    `<div class="pj-opt ${rv.answer ? (i === rv.correct ? "right" : "dim") : ""}" style="${optStyle(i)}">${LETTERS[i]}) ${h(o)}</div>`).join("")}</div>` : "";
+  const clues = q.type === "indizi" ? `${qClues(q).length ? `<ul class="pj-clues">${qClues(q).slice(0, rv.answer ? qClues(q).length : cl).map((x,i) => `<li><b>${i+1}</b>${h(x)}</li>`).join("")}</ul>` : ""}
+    ${rv.answer ? "" : `<div>Vale <strong>${ptsNow(q)}</strong> punti · indizio ${cl} di ${clueCount(q)}</div>`}` : "";
+  const bz = isBuzz(q) && !rv.answer ? buzzes(q) : [];
+  const buzz = bz.length ? `<div class="pj-buzz">🔔 ${bz.map((t,i) => i ? h(t.name) : `<strong>${h(t.name)}</strong>`).join(" · ")}</div>` : "";
+  const hint = rv.hint && !rv.answer ? `<div class="pj-box pj-hint">💡 ${h(rv.hint)}</div>` : "";
+  /* nelle domande a scelta l'opzione giusta è già evidenziata: basta la lettera */
+  const solText = q.type === "scelta" && rv.correct >= 0 ? "Risposta " + LETTERS[rv.correct] : rv.answer;
+  const sol = q.type === "intesa" ? "" : rv.answer ? `<div class="pj-box pj-sol">✅ ${h(solText)}${rv.notes ? `<div class="n">${h(rv.notes)}</div>` : ""}</div>` : "";
+  /* prove: chi è di turno; nell'intesa il contatore e, a turno finito, le parole */
+  const turn = q.team ? `<div class="pj-turn">Tocca a: <strong>${h(teamName(q.team))}</strong></div>` : "";
+  let intesa = "";
+  if (q.type === "intesa") {
+    const s = intesaState(q), rw = arr(rv.words);
+    intesa = rw.length
+      ? `<div class="pj-words">${rw.map((w,i) => `<span class="${s.ok.includes(i) ? "ok" : ""}">${s.ok.includes(i) ? "✓ " : ""}${h(w)}</span>`).join("")}</div>
+         <div class="pj-box pj-sol">${s.ok.length} ${s.ok.length === 1 ? "parola indovinata" : "parole indovinate"}: +${ptsNow(q)} ${ptsNow(q) === 1 ? "punto" : "punti"}</div>`
+      : `<div class="pj-count">${s.ok.length}<small> / ${Number(q.nwords) || 0} parole indovinate</small></div>`;
+  }
+  const left = remaining();
+  const timer = ph === "domanda" && qSecs(q) ? `<span class="pj-timer tick">${left === null ? "" : Math.max(0, Math.ceil(left / 1000)) + " s"}</span>` : ph === "risposte" && !rv.answer ? `<span class="pj-timer">Tempo!</span>` : "";
+  return `<div class="pj ${corner ? "" : "wide"}"><div class="pj-top"><span class="pj-tag">${h(r.title || "")} · ${pos}/${inRound.length}</span>${timer}</div>
+    <div class="pj-main comic-box">
+      ${q.cat ? `<div class="pj-cat">${h(q.cat)}</div>` : ""}
+      <div class="pj-q ${q.text.length > 110 ? "long" : ""}">${h(q.text)}</div>
+      ${turn}${isDrawTurn(q) ? `<div class="pj-draw"><canvas id="pjCanvas"></canvas></div>` : ""}${imgs}${opts}${clues}${intesa}${buzz}${hint}${sol}
+    </div></div>` + corner + fs;
+}
+
+/* ---------- CONCORRENTE: pulsantiera ---------- */
+const WAIT_MSGS = [
+  "🧠 Siete dentro! Fate stretching ai neuroni: si parte tra poco.",
+  "📚 Iscrizione ricevuta! Ripassate le tabelline, tra poco si fa sul serio.",
+  "😎 Ci siete! Il cervellone vi sta già giudicando… si parte a breve.",
+  "🤫 Squadra registrata. Ultima occasione per cercare tutto su Google: tra poco non si potrà più."
+];
+/* scelta casuale ma fissa per squadra: la pagina si ridisegna spesso e il messaggio non deve cambiare ogni volta */
+const pick = (list, key) => list[[...String(key)].reduce((n, c) => (n * 31 + c.charCodeAt(0)) >>> 0, 0) % list.length];
+function viewPlayer(){
+  const me = myTeam && ST.teams?.[myTeam];
+  const c = cfg();
+  if ((!myTeam || !me) && c.phase === "copertina") return `<div class="card" style="text-align:center"><p class="big">⏳ Le iscrizioni non sono ancora aperte</p><p>Tra poco il presentatore le apre: questa pagina si aggiorna da sola.</p></div>`;
+  if (!myTeam || !me) return bookingForm();
+  const head = `<div class="card"><strong>${h(me.name)}</strong></div>`;
+  const wait = t => head + `<div class="card" style="text-align:center"><p>${t}</p></div>`;
+  if (!me.confirmed) return wait(pick(WAIT_MSGS, myTeam));
+  if (["copertina", "iscrizione", "attesa"].includes(c.phase)) return wait("✅ Squadra confermata! Attendi l'inizio del quiz.");
+  if (c.phase === "classifica" || c.phase === "fine") return podium(myTeam, c.phase === "fine" ? "🏆 Classifica finale" : "🏆 Classifica");
+  const q = curQ();
+  if (!q) return wait("In attesa della prima domanda.");
+  if (c.phase === "parziale") return scoreMode() === "posizioni"
+    ? podium(myTeam, "Manche: " + (roundOf(q).title || ""), q.round) + podium(myTeam, "Classifica generale")
+    : podium(myTeam, "Classifica dopo: " + (roundOf(q).title || ""));
+  if (c.phase === "intro") return wait(`Sta per iniziare: <strong>${h(roundOf(q).title || "")}</strong>`);
+  const mine = ST.answers?.[myTeam]?.[q.id]?.value;
+  if (c.phase === "risposte") return head + `<div class="card" style="text-align:center"><p class="big">👀 Tempo scaduto!</p><p>Occhi sul proiettore…</p>${mine && !isBuzz(q) ? `<p class="muted">La vostra risposta: <strong>${h(mine)}</strong></p>` : ""}</div>`;
+  if (c.phase === "soluzione") {
+    const got = q.awarded?.[myTeam], rv = reveal(q);
+    return head + `<div class="card" style="text-align:center">
+      ${got ? `<p class="big">🎉 +${awardVal(q, got)} punti!</p>` : `<p class="big">😅 Niente punti stavolta</p>`}
+      ${rv.answer ? `<p class="muted">Risposta giusta: <strong>${h(rv.answer)}</strong></p>` : ""}
+    </div>${boardSetting() === "sempre" ? `<div class="card"><strong>${liveRound() ? "Manche: " + h(roundOf(q).title) : "Classifica"}</strong>${board(myTeam, liveRound())}</div>` : ""}`;
+  }
+  const r = remaining();
+  const locked = c.phase !== "domanda" || (r !== null && r <= 0);
+  const dis = locked ? "disabled" : "";
+  const timer = qSecs(q) ? `<div class="tag" style="font-size:1.1rem">⏱ <span class="tick"></span></div>` : "";
+  let pad;
+  const mineTurn = q.team === myTeam;
+  if (q.type === "intesa") {
+    const s = intesaState(q);
+    pad = mineTurn ? `<p class="big">🗣 Tocca a voi!</p><p>Indovinate le parole che vi descrive il vostro compagno.</p><p class="big">${s.ok.length} indovinate</p>`
+      : `<p class="big">Tocca a ${h(teamName(q.team))}</p><p>Occhi sul proiettore e silenzio: niente suggerimenti!</p>`;
+  } else if (q.type === "prova" && mineTurn) {
+    pad = `<p class="big">🎭 Tocca a voi!</p><p>Il vostro concorrente va dal presentatore a sentire la parola. Le altre squadre devono indovinarla: voi non potete prenotarvi.</p>`;
+  } else if (isBuzz(q)) {
+    const info = q.type === "indizi" ? `<p class="muted">Indizio ${c.clues || 1} di ${clueCount(q)} · vale ${ptsNow(q)} punti</p>`
+      : q.type === "prova" ? `<p>Si esibisce <strong>${h(teamName(q.team))}</strong>: indovinate!</p>` : "";
+    pad = info + (mine ? `<p class="big">✅ Sei prenotato: rispondi a voce!</p>`
+      : `<button class="btn big-opt" ${dis} onclick="answer('Prenotato')">🔔 PRENOTATI</button>`);
+  } else if (q.type === "scelta") {
+    pad = qOpts(q).map((o,i) =>
+      `<button class="big-opt" style="${optStyle(i)};font-size:1.3rem;padding:24px;font-weight:600;border-radius:12px;text-align:left;border:${mine===o?'4px solid #000':'0'};opacity:${dis?'.5':'1'}" ${dis} data-v="${h(o)}" onclick="answer(this.dataset.v)">${LETTERS[i]}) ${h(o)}</button>`).join("");
+  } else {
+    pad = `<input id="pAns" placeholder="La tua risposta" ${dis}>
+      <button class="btn big-opt" ${dis} onclick="answer(document.getElementById('pAns').value)">Invia risposta</button>`;
+  }
+  const sent = mine && !isBuzz(q) ? `<p>Inviata: <strong>${h(mine)}</strong></p>` : "";
+  return head + `<div class="card" style="text-align:center">${timer}${sent}${pad}</div>`;
+}
+function answer(v){
+  v = String(v ?? "").trim();
+  const r = remaining();
+  /* la pagina potrebbe essere ancora quella vecchia: a tempo scaduto la risposta non parte */
+  if (!v || cfg().phase !== "domanda" || (r !== null && r <= 0) || !ST.teams?.[myTeam]?.confirmed) return;
+  /* nelle prove la squadra di turno non risponde, e nell'intesa non risponde nessuno dal telefono */
+  const q = curQ();
+  if (q.team === myTeam || q.type === "intesa") return;
+  DB.ref(`quiz/answers/${myTeam}/${q.id}`).set({value: v.slice(0, 200), t: TS});
+}
+function bookingForm(){
+  return `<div class="card">
+    <strong>Iscrivi la tua squadra</strong>
+    <input id="bName" placeholder="Nome squadra" maxlength="30">
+    <input id="bMem" placeholder="Membri (facoltativo)" maxlength="80">
+    <button class="btn" onclick="book()">Iscriviti</button>
+    <p class="muted">Avete già una squadra ma avete cambiato telefono? Scrivete lo stesso nome per rientrare.</p>
+  </div>`;
+}
+function book(){
+  const name = document.getElementById("bName").value.trim().slice(0, 30);
+  if (!name || cfg().phase === "copertina") return;
+  /* stesso nome = stessa squadra: chi ricarica o cambia telefono rientra invece di creare un doppione */
+  const same = teams().find(t => norm(t.name) === norm(name));
+  if (same) {
+    if (!confirm(`La squadra "${same.name}" esiste già. Siete voi? OK per rientrare, Annulla per scegliere un altro nome.`)) return;
+    myTeam = same.id;
+    localStorage.setItem("qnTeam", same.id);
+    return render();
+  }
+  const id = uid();
+  DB.ref("quiz/teams/" + id).set({ name, members: document.getElementById("bMem").value.trim().slice(0, 80), confirmed: false });
+  myTeam = id;
+  localStorage.setItem("qnTeam", id);
+}
+
+/* ---------- QR ---------- */
+function makeQR(){
+  document.querySelectorAll("[data-qr]").forEach(el => {
+    el.innerHTML = "";
+    if (typeof QRCode === "undefined") { el.textContent = "QR non disponibile"; return; }
+    const s = Number(el.dataset.size) || 220;
+    new QRCode(el, { text: el.dataset.qr, width: s, height: s });
+  });
+}
+
+render();
+</script>
+</body>
+</html>
