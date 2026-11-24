@@ -1086,7 +1086,6 @@ function fixCard(){
     <div style="margin-top:8px">
       <button class="btn ghost" onclick="fixBack()" ${i <= 0 || ["copertina", "iscrizione"].includes(c.phase) ? "disabled" : ""}>← Torna alla domanda precedente</button>
       <button class="btn ghost" onclick="fixRepeat()" ${["domanda","risposte","soluzione"].includes(c.phase) ? "" : "disabled"}>↻ Ripeti questa domanda</button>
-      <button class="btn ghost" onclick="fixReopen()" ${["copertina", "iscrizione"].includes(c.phase) ? "disabled" : ""}>Riapri le iscrizioni</button>
     </div>
     <div class="row" style="margin-top:6px"><select id="fixTo">${l.map((x,j) => `<option value="${j}" ${j === i ? "selected" : ""}>${j+1}. ${h(roundOf(x).title)} – ${h((x.cat ? x.cat + ": " : "") + x.text).slice(0,50)}</option>`).join("")}</select>
       <button class="btn ghost" onclick="fixJump()">Vai</button></div>
@@ -1104,10 +1103,6 @@ function fixRepeat(){
   const up = { [`quiz/questions/${q.id}/awarded`]: null };
   teams().forEach(t => up[`quiz/answers/${t.id}/${q.id}`] = null);
   DB.ref().update(up).then(() => goQ(cfg().idx || 0));
-}
-function fixReopen(){
-  if (!confirm("Riaprire le iscrizioni? La partita resta in pausa con i punti attuali; poi riprendi dal pulsante principale.")) return;
-  setConfig({ phase: "iscrizione" });
 }
 function fixJump(){
   const j = Number(document.getElementById("fixTo").value), q = qs()[j];
@@ -1460,7 +1455,16 @@ function answer(v){
   if (q.team === myTeam || q.type === "intesa") return;
   DB.ref(`quiz/answers/${myTeam}/${q.id}`).set({value: v.slice(0, 200), t: TS});
 }
+/* le iscrizioni sono aperte solo prima della partita; dopo si può solo rientrare in una squadra già iscritta */
+const signupOpen = () => cfg().phase === "iscrizione";
 function bookingForm(){
+  if (!signupOpen()) return `<div class="card" style="text-align:center"><p class="big">🔒 Iscrizioni chiuse</p><p>La partita è già iniziata e non si accettano squadre nuove.</p></div>
+    <div class="card">
+    <strong>Avete già una squadra?</strong>
+    <p class="muted">Se avete cambiato telefono o chiuso la pagina, scrivete il nome della vostra squadra per rientrare.</p>
+    <input id="bName" placeholder="Nome squadra" maxlength="30">
+    <button class="btn" onclick="book()">Rientra</button>
+  </div>`;
   return `<div class="card">
     <strong>Iscrivi la tua squadra</strong>
     <input id="bName" placeholder="Nome squadra" maxlength="30">
@@ -1471,7 +1475,7 @@ function bookingForm(){
 }
 function book(){
   const name = document.getElementById("bName").value.trim().slice(0, 30);
-  if (!name || cfg().phase === "copertina") return;
+  if (!name) return;
   /* stesso nome = stessa squadra: chi ricarica o cambia telefono rientra invece di creare un doppione */
   const same = teams().find(t => norm(t.name) === norm(name));
   if (same) {
@@ -1480,6 +1484,7 @@ function book(){
     localStorage.setItem("qnTeam", same.id);
     return render();
   }
+  if (!signupOpen()) return alert(`Le iscrizioni sono chiuse e non c'è nessuna squadra "${name}". Per rientrare scrivete il nome esatto della vostra squadra.`);
   const id = uid();
   DB.ref("quiz/teams/" + id).set({ name, members: document.getElementById("bMem").value.trim().slice(0, 80), confirmed: false });
   myTeam = id;
