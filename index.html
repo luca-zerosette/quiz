@@ -823,7 +823,7 @@ function hostTeams(){
     <div class="row"><div><strong>${h(t.name)}</strong> <span class="tag ${t.confirmed?'good':''}">${t.confirmed?"confermata":"in attesa"}</span>
     <div class="muted">${h(t.members||"")}</div></div>
     <div><button class="btn ${t.confirmed?'ghost':'ok'}" onclick="toggleTeam('${t.id}')">${t.confirmed?"Togli conferma":"Conferma"}</button>
-    <button class="btn danger" onclick="delTeam('${t.id}')">✕</button></div></div>`).join("") || `<p class="muted">Nessuna squadra iscritta. Max 10 concorrenti consigliati.</p>`;
+    <button class="btn danger" onclick="delTeam('${t.id}')">✕</button></div></div>`).join("") || `<p class="muted">Nessuna squadra iscritta.</p>`;
   return `<div class="card">${list}</div>`;
 }
 function toggleTeam(id){
