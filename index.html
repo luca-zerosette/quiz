@@ -22,6 +22,12 @@
 body{margin:0;font-family:system-ui,-apple-system,sans-serif;background:var(--comic);background-color:var(--bg);background-attachment:fixed;color:var(--text);padding:16px;max-width:720px;margin:auto;min-height:100vh}
 /* sfondo scelto dal presentatore: sostituisce quello a fumetto */
 body.custom-bg{background:var(--bg) center/cover fixed}
+/* sfondo a raggiera: verticale sui telefoni, ruotato di 90° sugli schermi orizzontali (proiettore, PC).
+   Sta in un livello fisso dietro la pagina perché sui telefoni background-attachment:fixed non funziona;
+   la raggiera disegnata sopra resta solo finché l'immagine non è caricata */
+body::before{content:"";position:fixed;inset:0;z-index:-1;background:url(sfondo-orizzontale.jpg) center/cover no-repeat}
+@media (orientation: portrait){body::before{background-image:url(sfondo-verticale.jpg)}}
+body.custom-bg::before{display:none}
 h1{font-family:var(--comic-font);font-weight:400;font-size:2rem;letter-spacing:.02em;margin:0 0 12px;color:#fff;
   text-shadow:3px 3px 0 var(--ink),-1.5px -1.5px 0 var(--ink),1.5px -1.5px 0 var(--ink),-1.5px 1.5px 0 var(--ink),1.5px 1.5px 0 var(--ink)}
 nav{display:flex;gap:6px;flex-wrap:wrap;margin-bottom:16px}
