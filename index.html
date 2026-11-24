@@ -575,7 +575,7 @@ function hostQuestions(){
 }
 
 /* ---------- lettura del file Word ---------- */
-const LABEL = /^\s*(QUIZ|CLASSIFICA|PUNTEGGIO|COPERTINA|CHIUSURA|MANCHE|APERTURA|TIPO|PUNTI|TEMPO|TITOLO|DOMANDA|INDIZIO|AIUTO|RISPOSTA|NOTE|PAROLA|PAROLE)\s*:\s*(.*)$/i;
+const LABEL = /^\s*(QUIZ|CLASSIFICA|PUNTEGGIO|COPERTINA|CHIUSURA|MANCHE|APERTURA|TIPO|PUNTI|TEMPO|TITOLO|DOMANDA|INDIZIO|AIUTO|RISPOSTA|NOTE|MOTIVAZIONE|SPIEGAZIONE|PAROLA|PAROLE)\s*:\s*(.*)$/i;
 const OPTION = /^\s*([A-H])\s*[\)\.\-–:]\s+(.+)$/;
 /* prove pratiche: una per squadra, con le parole estratte dall'elenco della manche */
 const TRIAL = ["prova", "intesa"];
@@ -607,16 +607,19 @@ async function parseDocx(file){
     .forEach(r => rels[r.getAttribute("Id")] = "word/" + r.getAttribute("Target").replace(/^\/?word\//, "").replace(/^\//, ""));
   const doc = new DOMParser().parseFromString(docXml, "application/xml");
   const body = doc.getElementsByTagName("w:body")[0];
-  const paras = [...body.getElementsByTagName("w:p")].map(p => {
-    let text = "";
+  /* un a capo dentro il paragrafo (Maiusc+Invio) vale come una riga nuova: tante opzioni A) B) C) finiscono così in un paragrafo solo */
+  const paras = [...body.getElementsByTagName("w:p")].flatMap(p => {
+    const lines = [""];
     const imgs = [];
     for (const n of p.getElementsByTagName("*")) {
-      if (n.nodeName === "w:t") text += n.textContent;
-      else if (n.nodeName === "w:tab" || n.nodeName === "w:br") text += " ";
+      if (n.nodeName === "w:t") lines[lines.length - 1] += n.textContent;
+      else if (n.nodeName === "w:tab") lines[lines.length - 1] += " ";
+      else if (n.nodeName === "w:br" || n.nodeName === "w:cr") lines.push("");
       else if (n.nodeName === "a:blip" && n.getAttribute("r:embed")) imgs.push(rels[n.getAttribute("r:embed")]);
       else if (n.nodeName === "v:imagedata" && n.getAttribute("r:id")) imgs.push(rels[n.getAttribute("r:id")]);
     }
-    return { text: text.replace(/\s+/g, " ").trim(), list: p.getElementsByTagName("w:numPr").length > 0, imgs: imgs.filter(Boolean) };
+    const list = p.getElementsByTagName("w:numPr").length > 0;
+    return lines.map((t, i) => ({ text: t.replace(/\s+/g, " ").trim(), list, imgs: i ? [] : imgs.filter(Boolean) }));
   });
 
   const P = { name: "", board: "sempre", score: "punti", cover: "", end: "", rounds: [], errors: [], warnings: [] };
@@ -643,7 +646,8 @@ async function parseDocx(file){
     if (!t || t.startsWith("//") || /^\s*impostazioni\s*:?\s*$/i.test(t)) continue;
     const m = t.match(LABEL);
     if (m) {
-      const key = m[1].toUpperCase(), val = m[2].trim();
+      /* MOTIVAZIONE e SPIEGAZIONE sono altri nomi di NOTE */
+      const key = ({ MOTIVAZIONE: "NOTE", SPIEGAZIONE: "NOTE" })[m[1].toUpperCase()] || m[1].toUpperCase(), val = m[2].trim();
       field = key; slot = "";
       if (key === "QUIZ") P.name = val;
       else if (key === "PUNTEGGIO") { P.score = /posiz|piazz/i.test(val) ? "posizioni" : /punt|somma|come/i.test(val) ? "punti" : ""; if (!P.score) P.errors.push(`PUNTEGGIO "${val}" sconosciuto (usa: punti oppure posizioni)`); }
@@ -662,9 +666,10 @@ async function parseDocx(file){
         if (val) q.words.push(...(key === "PAROLE" ? val.split(/[,;]/) : [val]).map(s => s.trim()).filter(Boolean));
       }
       else if (!q) P.errors.push(`${where()}: "${key}:" compare prima di una DOMANDA`);
-      else if (key === "INDIZIO") q.clues.push(val);
+      else if (key === "INDIZIO") { if (val) q.clues.push(val); }
       else if (key === "AIUTO") q.hint = val;
-      else if (key === "RISPOSTA") q.answer = val;
+      /* una seconda RISPOSTA cancellerebbe la prima senza dirlo */
+      else if (key === "RISPOSTA") { if (q.answer) P.errors.push(`${where()}: RISPOSTA scritta due volte ("${q.answer.slice(0, 40)}" e "${val.slice(0, 40)}"): lasciane una sola`); q.answer = val; }
       else if (key === "NOTE") q.notes = val;
       continue;
     }
