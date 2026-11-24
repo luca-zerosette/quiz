@@ -146,14 +146,22 @@ body.proj h1{display:none}
 .pj-board h3{font-family:var(--comic-font);font-weight:400;margin:0 0 .3em;font-size:1.3em;color:var(--red)}
 .pj-board div{display:flex;justify-content:space-between;gap:.5em;padding:.15em 0;font-weight:600}
 .pj-board span{overflow:hidden;text-overflow:ellipsis;white-space:nowrap}
-.pj-center{flex:1;display:flex;flex-direction:column;align-items:center;justify-content:center;text-align:center;gap:2.5vh}
+.pj-center{flex:1;display:flex;flex-direction:column;align-items:center;justify-content:safe center;text-align:center;gap:2.5vh;min-height:0;overflow:hidden}
 .pj-title{font-size:4em}
 .pj-teams{display:flex;flex-wrap:wrap;gap:.5em;justify-content:center;max-width:80vw}
 .pj-teams span{background:#fff;padding:.3em .8em;border-radius:99px;border:.1em solid var(--ink);font-weight:700;box-shadow:.12em .12em 0 var(--ink)}
 .pj-buzz{font-size:1.4em;margin-top:.4em}
 .pj-pod{width:min(70vw,1100px)}
 .pj-pod h2{font-family:var(--comic-font);font-weight:400;font-size:2.4em;color:#fff;text-shadow:.08em .08em 0 var(--ink)}
-.pj-pod .pod{background:#fff;border:.12em solid var(--ink);box-shadow:.25em .25em 0 var(--ink);color:var(--ink);font-size:1.4em}
+.pj-pod .pod{background:#fff;border:.12em solid var(--ink);box-shadow:.25em .25em 0 var(--ink);color:var(--ink);font-size:1.4em;padding:.45em .8em;margin:.3em 0;gap:.6em}
+/* tante squadre: classifica su due colonne */
+/* sul proiettore posizione e punti si rimpiccioliscono insieme al resto */
+.pj-pod .pos{font-size:1.15em;width:2.2em}
+.pj-pod .ppts{font-size:1.25em}
+.pj-pod.many{width:min(94vw,1600px)}
+.pj-pod.many .pod-list{column-count:2;column-gap:2.5vw}
+.pj-pod.many .pod{break-inside:avoid}
+.pj-pod .pname{overflow:hidden;text-overflow:ellipsis;white-space:nowrap}
 .pj-pod .ppts{font-family:var(--comic-font);font-weight:400;color:var(--red)}
 .gain{font-size:.65em;color:var(--ok)}
 /* a posizioni, a fine manche: classifica della manche e generale affiancate */
@@ -353,9 +361,9 @@ function podium(me, title = "🏆 Classifica", rid = "", shown = null){
   /* a pari merito stessa posizione (nella generale conta anche lo spareggio sui punti delle risposte) */
   const place = t => list.findIndex(x => x.pts === t.pts && (rid || x.raw === t.raw));
   const from = shown == null ? 0 : Math.max(0, list.length - shown);
-  return `<h2 style="text-align:center;margin:8px 0">${h(title)}</h2>` + (list.map((t, i) => i < from
+  return `<h2 style="text-align:center;margin:8px 0">${h(title)}</h2>` + (list.length ? `<div class="pod-list">${list.map((t, i) => i < from
     ? `<div class="pod hid"><span class="pos">?</span><span class="pname">?</span><span class="ppts"></span></div>`
-    : `<div class="pod ${t.id===me?'pme':''} ${shown != null && i === from ? "pop" : ""}"><span class="pos">${medal[place(t)] || place(t) + 1}</span><span class="pname">${h(t.name)}</span><span class="ppts">${t.pts}${rid ? ` <small class="gain">+${t.gain}</small>` : ""}</span></div>`).join("")
+    : `<div class="pod ${t.id===me?'pme':''} ${shown != null && i === from ? "pop" : ""}"><span class="pos">${medal[place(t)] || place(t) + 1}</span><span class="pname">${h(t.name)}</span><span class="ppts">${t.pts}${rid ? ` <small class="gain">+${t.gain}</small>` : ""}</span></div>`).join("")}</div>` : ""
     || `<p style="text-align:center">Nessuna squadra confermata.</p>`);
 }
 /* classifica di fine manche (o di metà gara): a posizioni la manche accanto alla generale, tranne con "metà e fine",
@@ -457,9 +465,22 @@ function setTab(t){ tab = t; render(); }
 /* proiettore: se il riquadro non ci sta (schermo largo e basso, tanti indizi, soluzione in fondo) rimpicciolisce il testo finché entra */
 function fitProj(){
   const m = document.querySelector(".pj-main");
-  if (!m) return;
-  m.style.fontSize = "";
-  for (let s = 0.95; m.scrollHeight > m.clientHeight + 1 && s >= 0.5; s -= 0.05) m.style.fontSize = s.toFixed(2) + "em";
+  if (m) {
+    m.style.fontSize = "";
+    for (let s = 0.95; m.scrollHeight > m.clientHeight + 1 && s >= 0.5; s -= 0.05) m.style.fontSize = s.toFixed(2) + "em";
+  }
+  /* classifiche e iscrizioni: con tante squadre il testo si rimpicciolisce finché tutto entra */
+  const c = document.querySelector(".pj-center");
+  if (c) {
+    c.style.fontSize = "";
+    for (let s = 0.95; c.scrollHeight > c.clientHeight + 1 && s >= 0.3; s -= 0.05) c.style.fontSize = s.toFixed(2) + "em";
+  }
+  /* classifica nell'angolo: non deve uscire dal fondo dello schermo */
+  const b = document.querySelector(".pj-board");
+  if (b) {
+    b.style.fontSize = "";
+    for (let s = 0.8; b.getBoundingClientRect().bottom > innerHeight - 8 && s >= 0.4; s -= 0.05) b.style.fontSize = s.toFixed(2) + "em";
+  }
 }
 if (IS_PROJ) {
   addEventListener("resize", () => { fitProj(); drawProj(); });
@@ -1326,8 +1347,9 @@ function viewProj(){
       <div class="pj-teams">${names}</div></div></div>` + fs;
   }
   if (ph === "fine") return ST.settings?.end ? full(ST.settings.end) + fs : `<div class="pj"><div class="pj-center"><div class="pj-title comic-title">Grazie per aver giocato!</div></div></div>` + fs;
-  if (ph === "classifica") return `<div class="pj"><div class="pj-center"><div class="pj-pod">${podium("", "🏆 Classifica finale", "", c.shown)}</div></div></div>` + fs;
-  if (ph === "parziale" && q) return `<div class="pj"><div class="pj-center">${partial(q, "", c.shown, (a, b) => `<div class="pj-pods"><div class="pj-pod">${a}</div><div class="pj-pod">${b}</div></div>`, a => `<div class="pj-pod">${a}</div>`)}</div></div>` + fs;
+  const many = ranked().length > 8 ? "many" : "";
+  if (ph === "classifica") return `<div class="pj"><div class="pj-center"><div class="pj-pod ${many}">${podium("", "🏆 Classifica finale", "", c.shown)}</div></div></div>` + fs;
+  if (ph === "parziale" && q) return `<div class="pj"><div class="pj-center">${partial(q, "", c.shown, (a, b) => `<div class="pj-pods"><div class="pj-pod">${a}</div><div class="pj-pod">${b}</div></div>`, a => `<div class="pj-pod ${many}">${a}</div>`)}</div></div>` + fs;
   if (!q || ph === "attesa") return (ST.settings?.cover ? full(ST.settings.cover) : `<div class="pj"><div class="pj-center"><div class="pj-title comic-title">${h(quizName())}</div></div></div>`) + corner + fs;
   const r = roundOf(q);
   if (ph === "intro") return (r.cover ? full(r.cover, r.title) : `<div class="pj"><div class="pj-center"><div class="pj-title comic-title">${h(r.title)}</div></div></div>`) + fs;
