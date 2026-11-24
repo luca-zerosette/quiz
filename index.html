@@ -47,6 +47,12 @@ input,select,textarea{width:100%;padding:10px;margin:4px 0 8px;border:1px solid 
 .pname{flex:1;font-weight:600;overflow:hidden;text-overflow:ellipsis}
 .ppts{font-size:1.8rem;font-weight:800;color:var(--accent)}
 .pme{outline:3px solid var(--accent)}
+/* classifica coperta: le squadre compaiono una alla volta */
+.pod.hid{opacity:.35}
+.pod.hid .pname{letter-spacing:.3em}
+.pod.pop{animation:podIn .6s ease-out}
+@keyframes podIn{from{transform:scale(.5) translateY(-40%);opacity:0}to{transform:none;opacity:1}}
+@media (prefers-reduced-motion: reduce){.pod.pop{animation:none}}
 .qr{background:#fff;padding:12px;display:inline-block;border-radius:8px}
 .thumbs{display:flex;gap:6px;flex-wrap:wrap;margin:6px 0}
 .thumbs img{height:70px;border-radius:6px}
@@ -340,14 +346,25 @@ function board(me, rid){
     `<div class="row ${t.id===me?'me':''}"><span>${h(t.name)}</span><strong>${t.pts}${rid && roundDone(rid) ? ` <span class="muted">(+${t.gain})</span>` : ""}</strong></div>`).join("")
     || `<p class="muted">Nessuna squadra confermata.</p>`;
 }
-function podium(me, title = "🏆 Classifica", rid = ""){
+/* shown: quante squadre sono già svelate partendo dall'ultima (le altre restano coperte); senza shown si vede tutto */
+function podium(me, title = "🏆 Classifica", rid = "", shown = null){
   const medal = ["🥇","🥈","🥉"];
   const list = rid ? roundRanked(rid) : ranked();
   /* a pari merito stessa posizione (nella generale conta anche lo spareggio sui punti delle risposte) */
   const place = t => list.findIndex(x => x.pts === t.pts && (rid || x.raw === t.raw));
-  return `<h2 style="text-align:center;margin:8px 0">${h(title)}</h2>` + (list.map(t =>
-    `<div class="pod ${t.id===me?'pme':''}"><span class="pos">${medal[place(t)] || place(t) + 1}</span><span class="pname">${h(t.name)}</span><span class="ppts">${t.pts}${rid ? ` <small class="gain">+${t.gain}</small>` : ""}</span></div>`).join("")
+  const from = shown == null ? 0 : Math.max(0, list.length - shown);
+  return `<h2 style="text-align:center;margin:8px 0">${h(title)}</h2>` + (list.map((t, i) => i < from
+    ? `<div class="pod hid"><span class="pos">?</span><span class="pname">?</span><span class="ppts"></span></div>`
+    : `<div class="pod ${t.id===me?'pme':''} ${shown != null && i === from ? "pop" : ""}"><span class="pos">${medal[place(t)] || place(t) + 1}</span><span class="pname">${h(t.name)}</span><span class="ppts">${t.pts}${rid ? ` <small class="gain">+${t.gain}</small>` : ""}</span></div>`).join("")
     || `<p style="text-align:center">Nessuna squadra confermata.</p>`);
+}
+/* classifica di fine manche (o di metà gara): a posizioni la manche accanto alla generale, tranne con "metà e fine",
+   dove conta solo la generale. Le classifiche si svelano una squadra alla volta */
+function partial(q, me, shown, two, one){
+  if (boardSetting() === "meta") return one(podium(me, "Classifica di metà gara", "", shown));
+  /* anche la manche si svela allo stesso ritmo: scoperta subito rovinerebbe la sorpresa sulla generale */
+  if (scoreMode() === "posizioni") return two(podium(me, "Manche: " + (roundOf(q).title || ""), q.round, shown), podium(me, "Classifica generale", "", shown));
+  return one(podium(me, "Classifica dopo: " + (roundOf(q).title || ""), "", shown));
 }
 /* squadre prenotate in ordine di tempo (domande a prenotazione e a indizi) */
 function buzzes(q){
@@ -450,7 +467,7 @@ if (IS_PROJ) {
 }
 /* proiettore: tromba a ogni prenotazione (fanfara alla prima, una nota alle successive) e gong quando le risposte si chiudono.
    Il browser blocca i suoni finché non si clicca o si preme un tasto sulla pagina */
-let AC = null, buzzSeen = { key: "", n: 0 }, lastQ = { id: "", phase: "" }, lastTest;
+let AC = null, buzzSeen = { key: "", n: 0 }, lastQ = { id: "", phase: "" }, lastTest, lastShown = { phase: "", n: null };
 /* il presentatore fa suonare il proiettore per provare il volume delle casse */
 const testSound = kind => setConfig({ soundTest: { kind, at: TS } });
 const soundOn = () => AC?.state === "running";
@@ -509,6 +526,9 @@ function projSounds(){
   const st = c.soundTest;
   if (st && lastTest !== undefined && st.at !== lastTest) st.kind === "gong" ? gong() : trumpet(true);
   lastTest = st?.at ?? null;
+  /* classifica svelata a poco a poco: una nota per ogni squadra, la fanfara per la prima */
+  if (["parziale", "classifica"].includes(c.phase) && lastShown.phase === c.phase && c.shown > (lastShown.n ?? Infinity)) trumpet(c.shown >= ranked().length);
+  lastShown = { phase: c.phase, n: c.shown ?? null };
   /* tempo scaduto o risposte chiuse: la domanda passa da "domanda" a risposte o soluzione */
   if (q && lastQ.id === q.id && lastQ.phase === "domanda" && ["risposte", "soluzione"].includes(c.phase)) gong();
   lastQ = { id: q?.id || "", phase: c.phase };
@@ -912,14 +932,22 @@ function nextStep(){
           : "Risposte chiuse. Quando mostri la soluzione le squadre che hanno indovinato prendono i punti da sole.",
         label: "Mostra la soluzione", run: showSol };
     case "soluzione":
-      if (i >= n - 1) return { text: "Ultima soluzione sul proiettore. Controlla i punti: poi c'è la classifica finale.", label: "🏆 Classifica finale", run: () => setConfig({ phase: "classifica" }) };
-      if (nextRound && showPartial(q)) return { text: "Soluzione sul proiettore. Questa era l'ultima domanda della manche.", label: boardSetting() === "meta" ? "Classifica di metà gara" : "Classifica di fine manche", run: () => setConfig({ phase: "parziale" }) };
+      if (i >= n - 1) return { text: "Ultima soluzione sul proiettore. Controlla i punti: poi c'è la classifica finale.", label: "🏆 Classifica finale", run: () => setConfig({ phase: "classifica", shown: 0 }) };
+      if (nextRound && showPartial(q)) return { text: "Soluzione sul proiettore. Questa era l'ultima domanda della manche.", label: boardSetting() === "meta" ? "Classifica di metà gara" : "Classifica di fine manche", run: () => setConfig({ phase: "parziale", shown: 0 }) };
       if (nextRound) return { text: "Soluzione sul proiettore. Questa era l'ultima domanda della manche (classifica nascosta fino a metà gara o alla fine).", label: `Apri la manche "${roundOf(l[i + 1]).title}"`, why: gate, run: () => setConfig({ phase: "intro", idx: i + 1 }) };
       return { text: "Soluzione sul proiettore. Controlla i punti, poi vai avanti.", label: `Domanda successiva (${posInRound(l[i + 1])} di ${qs().filter(x => x.round === q.round).length}) →`, why: gate, run: () => goQ(i + 1) };
     case "parziale":
-      return { text: `Classifica di fine manche sul proiettore.`, label: `Apri la manche "${roundOf(l[i + 1]).title}"`, why: gate, run: () => setConfig({ phase: "intro", idx: i + 1 }) };
-    case "classifica":
-      return { text: "Classifica finale sul proiettore. Proclama i vincitori!", label: "Chiudi la serata", run: () => setConfig({ phase: "fine" }) };
+    case "classifica": {
+      /* la classifica si svela una squadra alla volta, dall'ultima alla prima: il presentatore sa sempre chi viene dopo */
+      const list = ranked(), sh = c.shown ?? list.length;
+      if (sh < list.length) {
+        const t = list[list.length - 1 - sh], pos = list.findIndex(x => x.pts === t.pts && x.raw === t.raw) + 1;
+        return { text: `${c.phase === "classifica" ? "Classifica finale" : "Classifica"} sul proiettore, ancora coperta: svelala una squadra alla volta, dall'ultima alla prima. Prossima: <strong>${pos}° posto, ${h(t.name)}</strong> con ${t.pts} punti.`,
+          label: `Svela il ${pos}° posto`, hot: sh === list.length - 1, run: () => setConfig({ shown: sh + 1 }) };
+      }
+      if (c.phase === "classifica") return { text: "Classifica finale svelata. Proclama i vincitori!", label: "Chiudi la serata", run: () => setConfig({ phase: "fine" }) };
+    }
+      return { text: `${boardSetting() === "meta" ? "Classifica di metà gara" : "Classifica di fine manche"} svelata.`, label: `Apri la manche "${roundOf(l[i + 1]).title}"`, why: gate, run: () => setConfig({ phase: "intro", idx: i + 1 }) };
     default:
       return { text: "Serata conclusa. 🎉 Per giocare di nuovo vai nella scheda Domande, riquadro \"Ripartire da capo\".", label: "" };
   }
@@ -1298,10 +1326,8 @@ function viewProj(){
       <div class="pj-teams">${names}</div></div></div>` + fs;
   }
   if (ph === "fine") return ST.settings?.end ? full(ST.settings.end) + fs : `<div class="pj"><div class="pj-center"><div class="pj-title comic-title">Grazie per aver giocato!</div></div></div>` + fs;
-  if (ph === "classifica") return `<div class="pj"><div class="pj-center"><div class="pj-pod">${podium("", "🏆 Classifica finale")}</div></div></div>` + fs;
-  if (ph === "parziale" && q) return `<div class="pj"><div class="pj-center">${scoreMode() === "posizioni"
-    ? `<div class="pj-pods"><div class="pj-pod">${podium("", "Manche: " + (roundOf(q).title || ""), q.round)}</div><div class="pj-pod">${podium("", "Classifica generale")}</div></div>`
-    : `<div class="pj-pod">${podium("", "Classifica dopo: " + (roundOf(q).title || ""))}</div>`}</div></div>` + fs;
+  if (ph === "classifica") return `<div class="pj"><div class="pj-center"><div class="pj-pod">${podium("", "🏆 Classifica finale", "", c.shown)}</div></div></div>` + fs;
+  if (ph === "parziale" && q) return `<div class="pj"><div class="pj-center">${partial(q, "", c.shown, (a, b) => `<div class="pj-pods"><div class="pj-pod">${a}</div><div class="pj-pod">${b}</div></div>`, a => `<div class="pj-pod">${a}</div>`)}</div></div>` + fs;
   if (!q || ph === "attesa") return (ST.settings?.cover ? full(ST.settings.cover) : `<div class="pj"><div class="pj-center"><div class="pj-title comic-title">${h(quizName())}</div></div></div>`) + corner + fs;
   const r = roundOf(q);
   if (ph === "intro") return (r.cover ? full(r.cover, r.title) : `<div class="pj"><div class="pj-center"><div class="pj-title comic-title">${h(r.title)}</div></div></div>`) + fs;
@@ -1361,12 +1387,10 @@ function viewPlayer(){
   const wait = t => head + `<div class="card" style="text-align:center"><p>${t}</p></div>`;
   if (!me.confirmed) return wait(pick(WAIT_MSGS, myTeam));
   if (["copertina", "iscrizione", "attesa"].includes(c.phase)) return wait("✅ Squadra confermata! Attendi l'inizio del quiz.");
-  if (c.phase === "classifica" || c.phase === "fine") return podium(myTeam, c.phase === "fine" ? "🏆 Classifica finale" : "🏆 Classifica");
+  if (c.phase === "classifica" || c.phase === "fine") return podium(myTeam, "🏆 Classifica finale", "", c.phase === "fine" ? null : c.shown);
   const q = curQ();
   if (!q) return wait("In attesa della prima domanda.");
-  if (c.phase === "parziale") return scoreMode() === "posizioni"
-    ? podium(myTeam, "Manche: " + (roundOf(q).title || ""), q.round) + podium(myTeam, "Classifica generale")
-    : podium(myTeam, "Classifica dopo: " + (roundOf(q).title || ""));
+  if (c.phase === "parziale") return partial(q, myTeam, c.shown, (a, b) => a + b, a => a);
   if (c.phase === "intro") return wait(`Sta per iniziare: <strong>${h(roundOf(q).title || "")}</strong>`);
   const mine = ST.answers?.[myTeam]?.[q.id]?.value;
   if (c.phase === "risposte") return head + `<div class="card" style="text-align:center"><p class="big">👀 Tempo scaduto!</p><p>Occhi sul proiettore…</p>${mine && !isBuzz(q) ? `<p class="muted">La vostra risposta: <strong>${h(mine)}</strong></p>` : ""}</div>`;
