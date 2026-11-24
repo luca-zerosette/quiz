@@ -695,6 +695,9 @@ async function parseDocx(file){
   P.rounds.forEach(r => {
     if (!r.type) P.errors.push(`Manche "${r.title}": manca TIPO`);
     if (!r.questions.length) P.warnings.push(`Manche "${r.title}": nessuna domanda`);
+    /* manche che sembrano prove pratiche ma sono scritte come domande normali: niente turni, parole segrete né lavagna */
+    if (!TRIAL.includes(r.type) && /disegn|mimo|canzon|canticch|intesa/i.test(r.title))
+      P.warnings.push(`Manche "${r.title}": sembra una prova pratica ma ha TIPO "${({ prenota: "prenotazione" })[r.type] || r.type || "?"}". Per i turni a squadre usa TIPO: prova, disegno o intesa con l'elenco delle PAROLE`);
     r.questions.forEach(q => {
       nq++;
       const w = `Domanda ${nq} (${r.title})`;
@@ -1219,7 +1222,10 @@ function viewBoard(){
   const q = curQ(), on = boardActive();
   document.getElementById("bInfo").innerHTML = on
     ? `Tocca a <strong>${h(teamName(q.team))}</strong>: disegna! <span class="tag">⏱ <span class="tick"></span></span>`
-    : isDrawTurn(q) ? "Tempo finito: aspetta il prossimo turno." : "La lavagna si attiva durante le prove di disegno.";
+    : isDrawTurn(q) ? "Tempo finito: aspetta il prossimo turno."
+    /* se la lavagna resta spenta deve essere chiaro perché */
+    : q && cfg().phase === "domanda" ? `La domanda in corso ("${h(roundOf(q).title || q.text)}") non è una prova di disegno: la lavagna si accende solo nelle manche con <strong>TIPO: disegno</strong> nel Word.`
+    : "La lavagna si attiva durante le prove di disegno.";
   /* la parola, piccola in un angolo: la legge chi disegna */
   document.getElementById("bWord").textContent = on ? "Parola: " + ((SECRET[q.id] || {}).answer || "") : "";
   document.querySelector(".board").classList.toggle("off", !on);
