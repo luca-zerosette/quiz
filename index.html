@@ -597,7 +597,7 @@ function hostQuestions(){
         ${qOpts(q).length ? `<div class="muted">${qOpts(q).map((o,i) => LETTERS[i] + ") " + h(o)).join("<br>")}</div>` : ""}
         ${qClues(q).length ? `<div class="muted">${qClues(q).map((c,i) => (i+1) + ". " + h(c)).join("<br>")}</div>` : ""}
         ${qImgs(q).length ? `<div class="thumbs">${qImgs(q).map(id => img(id)).join("")}</div>` : ""}
-        ${q.template ? `<div class="muted">Una prova per squadra${q.type === "intesa" ? " (parole divise in parti uguali)" : ""}. Parole (${arr(sec.words).length}): <strong>${h(arr(sec.words).join(", "))}</strong></div>`
+        ${q.template ? `<div class="muted">Una prova per squadra${q.type === "intesa" ? " (tutte con le stesse parole, in ordine mescolato)" : ""}. Parole (${arr(sec.words).length}): <strong>${h(arr(sec.words).join(", "))}</strong></div>`
           : `<div class="${todo ? "msg-err" : "muted"}">${q.type === "intesa" ? "Parole" : "Risposta"}: <strong>${h(sec.answer)}</strong>${q.team ? ` · tocca a ${h(teamName(q.team))}` : ""}</div>`}
         ${sec.hint ? `<div class="muted">Aiuto: ${h(sec.hint)}</div>` : ""}</div></div>`;
     }).join("");
@@ -1157,16 +1157,16 @@ async function goQ(i){
 }
 const shuffle = a => { a = [...a]; for (let i = a.length - 1; i > 0; i--) { const j = Math.floor(Math.random() * (i + 1)); [a[i], a[j]] = [a[j], a[i]]; } return a; };
 /* prove pratiche: un turno per squadra confermata, in ordine casuale, con parole estratte a caso e mai ripetute.
-   Nell'intesa ogni squadra riceve la stessa quantità di parole */
+   Nell'intesa tutte le squadre giocano l'intero elenco, ognuna in un ordine mescolato diverso: le parole non finiscono mai */
 async function expandTrials(q){
   const words = shuffle(arr((SECRET[q.id] || {}).words)), tl = shuffle(teams().filter(t => t.confirmed));
   if (!tl.length) return false;
-  const per = q.type === "intesa" ? Math.max(1, Math.floor(words.length / tl.length)) : 1;
-  const turns = Math.min(tl.length, Math.floor(words.length / per));
+  const intesa = q.type === "intesa";
+  const turns = intesa ? (words.length ? tl.length : 0) : Math.min(tl.length, words.length);
   if (turns < tl.length && !confirm(`Nel Word ci sono solo ${words.length} parole per ${tl.length} squadre: ${tl.length - turns} squadre resteranno senza prova. Continuare?`)) return false;
   const up = { [`quiz/questions/${q.id}/expanded`]: true };
   tl.slice(0, turns).forEach((t, k) => {
-    const id = q.id + "t" + k, w = words.slice(k * per, (k + 1) * per);
+    const id = q.id + "t" + k, w = intesa ? shuffle(words) : words.slice(k, k + 1);
     up[`quiz/questions/${id}`] = { order: q.order + (k + 1) / 1000, round: q.round, type: q.type, text: q.text, cat: q.cat || "",
       points: q.points, secs: q.secs, team: t.id, turnOf: q.id, nwords: w.length, ...(q.draw ? { draw: true } : {}) };
     up[`quizSecret/${id}`] = { answer: w.join(", "), words: w };
